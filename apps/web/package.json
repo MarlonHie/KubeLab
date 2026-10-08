@@ -1,0 +1,35 @@
+{
+  "name": "@kubelab/web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.0.0",
+    "lucide-react": "^0.468.0",
+    "@xyflow/react": "^12.10.0",
+    "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.55.0",
+    "@xterm/xterm": "^5.5.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "zustand": "^5.0.0",
+    "idb-keyval": "^6.2.0",
+    "yaml": "^2.8.0",
+    "ajv": "^8.17.1"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@mdx-js/rollup": "^3.1.0",
+    "@mdx-js/react": "^3.1.0",
+    "@types/mdx": "^2.0.0"
+  }
+}

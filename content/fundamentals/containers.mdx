@@ -1,0 +1,32 @@
+## Ein Image läuft noch nicht
+
+Ein **Image** enthält Dateisystem-Layer und Metadaten, etwa den Startbefehl. Ein **Container** ist eine laufende Instanz mit zusätzlicher beschreibbarer Schicht. Wenn ein Container entfernt wird, ist diese Schicht nicht als dauerhafter Datenspeicher geeignet.
+
+### Von Kubernetes zum Linux-Prozess
+
+1. **kubelet** fordert über CRI eine Pod-Sandbox und Container an.
+2. **containerd** verwaltet Images und den Lebenszyklus der Container.
+3. **runc** richtet die Linux-Isolation ein und startet den Prozess nach OCI-Spezifikation.
+
+Die CRI-Schnittstelle ist ein Vertrag, keine eigene Runtime. Kubernetes braucht keinen Docker-Daemon, um mit containerd zu arbeiten.
+
+### Image und Laufzeit untersuchen
+
+Nach dem Einrichten der Runtime im Build Lab kannst du im externen Terminal prüfen:
+
+```bash
+sudo crictl --runtime-endpoint unix:///run/containerd/containerd.sock info
+sudo crictl --runtime-endpoint unix:///run/containerd/containerd.sock ps -a
+```
+
+`crictl` arbeitet mit der CRI-Schnittstelle. `ctr` ist ein Diagnosewerkzeug für containerd und bildet nicht automatisch den Kubernetes-Workflow ab.
+
+### Deine Aufgabe
+
+Öffne anschließend das Operations Lab und wende das Deployment an. Untersuche mit `kubectl get pods`, wie aus einer Vorlage mehrere Pod-Instanzen entstehen. Die Simulation startet dabei keine echten Container.
+
+### Wenn etwas nicht klappt
+
+Ein `ImagePullBackOff` im echten Cluster weist oft auf einen falschen Image-Namen, einen fehlenden Tag oder fehlende Registry-Zugangsdaten hin. `kubectl describe pod NAME` zeigt die zugehörigen Events.
+
+[Container Runtimes in Kubernetes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/)

@@ -1,0 +1,25 @@
+## Ein gewünschter Zustand, viele kleine Schritte
+
+Mit einem Deployment beschreibst du einen gewünschten Zustand, zum Beispiel zwei Instanzen einer Anwendung. Kubernetes arbeitet kontinuierlich daran, den tatsächlichen Zustand anzugleichen. Diesen Regelkreis nennen wir **Reconciliation**.
+
+### Die Komponenten der Control Plane
+
+- **kube-apiserver** prüft und verarbeitet API-Anfragen. Die anderen Komponenten kommunizieren über die API.
+- **etcd** speichert den Clusterzustand. Es ist keine Anwendungsdatenbank für deine Workloads.
+- **kube-controller-manager** führt Regelkreise aus. Deployment- und ReplicaSet-Controller erzeugen die benötigten Ressourcen.
+- **kube-scheduler** weist noch nicht eingeplanten Pods geeignete Nodes zu.
+- **kubelet** auf dem gewählten Node lässt die Runtime die Container starten und meldet den Status zurück.
+
+### Warum startet der API Server keinen Container?
+
+Die Control Plane koordiniert den gewünschten Zustand. Die Ausführung liegt auf den Nodes. Diese Trennung ermöglicht es, ausgefallene Instanzen auf anderen geeigneten Nodes neu zu erstellen.
+
+### Deine Aufgabe
+
+Verfolge im Visualizer den Weg vom Deployment zu den Pods. Variiere anschließend im Scheduler-Experiment den CPU-Request. Was passiert, wenn kein Node genügend freie Kapazität hat?
+
+### Wenn ein Pod Pending bleibt
+
+Prüfe im echten Cluster zuerst `kubectl describe pod NAME`. Unzureichende Ressourcen, nicht passende Node-Selektoren, Taints oder ein noch nicht gebundenes Volume können Scheduling verhindern. Der Scheduler schafft selbst keine zusätzliche Rechenleistung.
+
+[Kubernetes-Komponenten](https://kubernetes.io/docs/concepts/overview/components/)
