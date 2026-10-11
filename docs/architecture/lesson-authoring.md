@@ -84,7 +84,7 @@ Es gibt drei Prüfarten:
 
 Die Prüfungen benötigen keine zusätzliche VM-Infrastruktur. etcd und API melden Beobachtungen bei Schreibversuchen. Scheduling und Runtime melden sie über „Zustand für Aufgabe prüfen“. Nur registrierte Ereignisse des referenzierten Modells sind zulässig. Die Anforderungen bilden eine Menge beobachteter Fälle, keine zeitliche Reihenfolgenprüfung. Ein Modell-Reset verwirft die zugehörigen noch nicht gespeicherten Beobachtungen; ein bereits erworbener Abschluss bleibt als historischer Nachweis erhalten.
 
-Quizantworten, Zuordnungen, Rückmeldungen und Experimentzustände sind an die Lektions-ID gebunden und werden bei Navigation neu erzeugt. Nur bestandene Abschlüsse werden dauerhaft gespeichert. Hinweise und Lösungen bleiben frei zugänglich; dies ist ein selbstgesteuertes Lernwerkzeug, keine manipulationssichere Zertifizierungsprüfung.
+Quizantworten, Zuordnungen, Rückmeldungen und Experimentzustände sind an die Lektions-ID gebunden und werden bei Navigation neu erzeugt. Nur bestandene Abschlüsse werden dauerhaft gespeichert. Der sichtbare Speicherstatus bestätigt den asynchronen IndexedDB-Schreibabschluss; vor einem Neuladen auf „Lernstand lokal gespeichert“ warten. Hinweise und Lösungen bleiben frei zugänglich; dies ist ein selbstgesteuertes Lernwerkzeug, keine manipulationssichere Zertifizierungsprüfung.
 
 Neue Aufgaben mit vorhandenen Prüfarten sind reine Inhaltsänderungen. Ein neues Experiment oder eine neue Prüfart benötigt einmalig eine registrierte, getestete Implementierung. Der JSON-Inhalt enthält keine ausführbaren Prüfskripte.
 

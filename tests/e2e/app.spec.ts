@@ -5,7 +5,12 @@ test("learning completion survives reload, export, reset, and import", async ({
   await page.goto("/#/academy/linux");
   await page.getByLabel("cgroups", { exact: true }).check();
   await page.getByRole("button", { name: "Wissenscheck auswerten" }).click();
-  await expect(page.getByRole("status")).toContainText("Theorie verstanden");
+  await expect(
+    page.getByTestId("knowledge-check").getByRole("status"),
+  ).toContainText("Theorie verstanden");
+  await expect(page.getByTestId("progress-save-status")).toHaveText(
+    "Lernstand lokal gespeichert",
+  );
   await page.reload();
   await expect(page.getByTestId("theory-status")).toBeVisible();
   await page.goto("/#/settings");

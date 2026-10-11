@@ -91,6 +91,9 @@ test("three correct answers are required and reference completion survives reloa
   await expect(
     page.getByText("Alle Antworten sind richtig.", { exact: false }),
   ).toBeVisible();
+  await expect(page.getByTestId("progress-save-status")).toHaveText(
+    "Lernstand lokal gespeichert",
+  );
   await page.reload();
   await expect(page.getByTestId("theory-status")).toHaveText(
     "Theorie verstanden",

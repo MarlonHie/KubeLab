@@ -61,6 +61,15 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
           </div>
         }
       />
+      <p className="subtle" role="status" data-testid="progress-save-status">
+        {p.saveStatus === "saved"
+          ? "Lernstand lokal gespeichert"
+          : p.saveStatus === "pending"
+            ? "Lernstand wird gespeichert … Bitte vor dem Neuladen warten."
+            : p.saveStatus === "error"
+              ? "Lernstand nicht gespeichert. Exportiere eine Sicherung in den Einstellungen."
+              : "Lernstand wird geladen …"}
+      </p>
       <div className="lesson-layout">
         <article className="prose panel architecture-lesson">
           {lesson.goals.length > 0 && (

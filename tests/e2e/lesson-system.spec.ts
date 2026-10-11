@@ -12,6 +12,9 @@ async function answerQuiz(page: Page, id: string) {
       .getByLabel(q.answers[q.correct], { exact: true })
       .check();
   await page.getByRole("button", { name: "Wissenscheck auswerten" }).click();
+  await expect(page.getByTestId("progress-save-status")).toHaveText(
+    "Lernstand lokal gespeichert",
+  );
 }
 async function quorumTask(page: Page) {
   await page.getByRole("button", { name: "Änderung schreiben" }).click();
@@ -83,6 +86,9 @@ test("practice requires actual evidence, resets observations, and persists separ
     "Praxis gemeistert",
   );
   await expect(page.getByTestId("theory-status")).toHaveText("Theorie offen");
+  await expect(page.getByTestId("progress-save-status")).toHaveText(
+    "Lernstand lokal gespeichert",
+  );
   await page.reload();
   await expect(page.getByTestId("practice-status")).toHaveText(
     "Praxis gemeistert",
