@@ -1,5 +1,7 @@
 # Modul 03: Gap-Analyse und fachliche Erweiterung
 
+Historischer Review für 0.2.2. Seit 0.3.0 zählen Internals separat zum optionalen Deep Dive; aktuelle Regeln stehen in `foundations-and-learning-review.md`.
+
 Stand: 2026-10-11. Ausgangspunkt: 0.2.1 (4c36dc6). Umfang: neun vorhandene Architekturlektionen und ihre acht Modellarten. Keine neuen Hauptmodule, kein lokaler Agent. Die Grundlage wird als Daten-Snapshot in `tests/fixtures/architecture-v021.json` gesichert.
 
 | Lektion            | Vorhanden / Concept Simulator                                        | Lücke bzw. zu präzisierende Modellgrenze                                 | Ergänzte Interna und Beispiele                                                                                                     | Nachweis                                                                                  |
