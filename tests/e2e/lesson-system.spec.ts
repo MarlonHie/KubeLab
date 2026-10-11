@@ -4,6 +4,15 @@ import {
   quizFor,
   practiceTasks,
 } from "../../packages/lesson-engine/src";
+async function expectBasicPractice(page: Page) {
+  await expect(
+    page
+      .getByTestId("practice-practice")
+      .getByText("Praxisnachweis im Lernstand erfasst.", { exact: false }),
+  ).toBeVisible();
+  // New Internals tasks keep overall mastery open; the old completion remains valid.
+  await expect(page.getByTestId("practice-status")).toHaveText("Praxis offen");
+}
 async function answerQuiz(page: Page, id: string) {
   const quiz = quizFor(lessons.find((l) => l.id === id)!);
   for (const q of quiz.questions)
@@ -82,26 +91,20 @@ test("practice requires actual evidence, resets observations, and persists separ
   await expect(page.getByTestId("practice-status")).toHaveText("Praxis offen");
   await quorumTask(page);
   await page.getByRole("button", { name: "Praxisaufgabe prüfen" }).click();
-  await expect(page.getByTestId("practice-status")).toHaveText(
-    "Praxis gemeistert",
-  );
+  await expectBasicPractice(page);
   await expect(page.getByTestId("theory-status")).toHaveText("Theorie offen");
   await expect(page.getByTestId("progress-save-status")).toHaveText(
     "Lernstand lokal gespeichert",
   );
   await page.reload();
-  await expect(page.getByTestId("practice-status")).toHaveText(
-    "Praxis gemeistert",
-  );
+  await expectBasicPractice(page);
   await expect(page.getByTestId("theory-status")).toHaveText("Theorie offen");
   await answerQuiz(page, "etcd");
   await page.reload();
   await expect(page.getByTestId("theory-status")).toHaveText(
     "Theorie verstanden",
   );
-  await expect(page.getByTestId("practice-status")).toHaveText(
-    "Praxis gemeistert",
-  );
+  await expectBasicPractice(page);
 });
 test("matching checks reject incomplete work and opening a solution never grants mastery", async ({
   page,
@@ -120,9 +123,7 @@ test("matching checks reject incomplete work and opening a solution never grants
   for (const [i, item] of verification.items.entries())
     await task.locator("select").nth(i).selectOption(item.answer);
   await task.getByRole("button", { name: "Praxisaufgabe prüfen" }).click();
-  await expect(page.getByTestId("practice-status")).toHaveText(
-    "Praxis gemeistert",
-  );
+  await expectBasicPractice(page);
   await expect(page.getByTestId("theory-status")).toHaveText("Theorie offen");
 });
 test("version 2 IndexedDB migrates and export/import round trips both completion types", async ({
@@ -190,9 +191,7 @@ test("version 2 IndexedDB migrates and export/import round trips both completion
   await expect(page.getByTestId("theory-status")).toHaveText(
     "Theorie verstanden",
   );
-  await expect(page.getByTestId("practice-status")).toHaveText(
-    "Praxis gemeistert",
-  );
+  await expectBasicPractice(page);
 });
 test("scheduler and runtime observations follow explicit task states", async ({
   page,
@@ -213,9 +212,7 @@ test("scheduler and runtime observations follow explicit task states", async ({
     .getByRole("button", { name: "Zustand für Aufgabe prüfen" })
     .click();
   await page.getByRole("button", { name: "Praxisaufgabe prüfen" }).click();
-  await expect(page.getByTestId("practice-status")).toHaveText(
-    "Praxis gemeistert",
-  );
+  await expectBasicPractice(page);
   await page.goto("/#/academy/kubelet-runtime");
   for (const label of [
     "Pod-Netzwerk verfügbar",
@@ -232,16 +229,14 @@ test("scheduler and runtime observations follow explicit task states", async ({
     .getByRole("button", { name: "Zustand für Aufgabe prüfen" })
     .click();
   await page.getByRole("button", { name: "Praxisaufgabe prüfen" }).click();
-  await expect(page.getByTestId("practice-status")).toHaveText(
-    "Praxis gemeistert",
-  );
+  await expectBasicPractice(page);
 });
 test("code, YAML, outputs and tables render safely without mobile overflow", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/academy/cluster-basics");
-  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.getByRole("table").first()).toBeVisible();
   await page.goto("/#/academy/apply-to-pod");
   await expect(page.locator("code.language-yaml")).toContainText("replicas: 3");
   await expect(
@@ -281,9 +276,7 @@ test("API practice records rejected requests without awarding theory completion"
   await expect(page.getByTestId("practice-status")).toHaveText("Praxis offen");
   await page.getByRole("button", { name: "Schreibanfrage simulieren" }).click();
   await page.getByRole("button", { name: "Praxisaufgabe prüfen" }).click();
-  await expect(page.getByTestId("practice-status")).toHaveText(
-    "Praxis gemeistert",
-  );
+  await expectBasicPractice(page);
   await expect(page.getByTestId("theory-status")).toHaveText("Theorie offen");
 });
 

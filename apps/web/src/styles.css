@@ -3441,3 +3441,30 @@ input[type="checkbox"] {
 [data-theme="dark"] .lesson-code .syntax-keyword {
   color: #98c6ff;
 }
+
+.internals-section {
+  margin-top: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  min-width: 0;
+}
+.internals-section > summary {
+  cursor: pointer;
+  font-size: 1.2rem;
+  font-weight: 700;
+  padding: 0.5rem 0;
+}
+.deep-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.deep-actions .button {
+  white-space: normal;
+  text-align: left;
+}
+.deep-experiment {
+  min-width: 0;
+}

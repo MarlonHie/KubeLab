@@ -7,7 +7,8 @@
   "goals": [
     "Koordination und Ausführung sauber trennen",
     "API-basierte Kommunikation erklären",
-    "Eine kleine von einer hochverfügbaren Control Plane unterscheiden"
+    "Eine kleine von einer hochverfügbaren Control Plane unterscheiden",
+    "Static Pods, API-Hochverfügbarkeit und getrennte Leader-Wahlen bei Ausfällen erklären"
   ],
   "sources": [
     {
@@ -17,6 +18,14 @@
     {
       "title": "Statische Pods",
       "url": "https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/"
+    },
+    {
+      "title": "Leases",
+      "url": "https://kubernetes.io/docs/concepts/architecture/leases/"
+    },
+    {
+      "title": "HA topology",
+      "url": "https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/ha-topology/"
     }
   ],
   "$schema": "../../packages/lesson-engine/lesson.schema.json",
@@ -157,6 +166,125 @@
       ]
     },
     {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Optionaler Vertiefungspfad",
+          "text": "Die Grundlagen bleiben dein Einstieg. Hier folgen Implementierungsdetails, Diagnose und Transfer. Die vorhandenen einfachen Experimente dienen als Concept Simulator; zusätzliche Modelle bilden ausdrücklich ausgewählte interne Schritte ab."
+        },
+        {
+          "type": "heading",
+          "text": "Bootstrap ohne funktionierenden Scheduler"
+        },
+        {
+          "type": "text",
+          "text": "Bei kubeadm liegen die Manifeste von API Server, Scheduler und Controller Manager unter /etc/kubernetes/manifests; bei lokalem etcd auch dessen Manifest. Das kubelet liest diesen Pfad und betreut diese Static Pods direkt. Damit kann die Control Plane starten, bevor Scheduling verfügbar ist. Ein Mirror Pod macht einen Static Pod über die API sichtbar, steuert ihn aber nicht. Das Löschen allein dieses API-Objekts entfernt das lokale Manifest nicht; das kubelet kann den Mirror Pod erneut anlegen."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "code": "sudo ls /etc/kubernetes/manifests\nkubectl -n kube-system get pods -o wide\nkubectl -n kube-system get leases\nkubectl -n kube-system get lease kube-scheduler -o yaml",
+          "caption": "Lesezugriffe auf einem kubeadm-Control-Plane-Node. Pfad und Lease-Namen gelten für die entsprechende kubeadm-Konfiguration, nicht für jede Managed-Kubernetes-Installation."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Static Pods](https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/)."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [kubeadm implementation details](https://kubernetes.io/docs/reference/setup-tools/kubeadm/implementation-details/)."
+        },
+        {
+          "type": "heading",
+          "text": "HA besteht aus mehreren getrennten Mechanismen"
+        },
+        {
+          "type": "table",
+          "caption": "Fehlerdomänen einer hochverfügbaren Control Plane",
+          "headers": [
+            "Mechanismus",
+            "Normalbetrieb",
+            "Ausfallfolge"
+          ],
+          "rows": [
+            [
+              "Mehrere API Server hinter Load Balancer",
+              "Mehrere Instanzen bedienen Requests",
+              "Ein verlorener Endpunkt muss aus dem Routing fallen; etcd bleibt gemeinsame Abhängigkeit"
+            ],
+            [
+              "Controller-Manager / Scheduler Leader Election",
+              "Instanzen koordinieren aktive Verantwortung über Leases",
+              "Übernahme wartet auf Wahlbedingungen; mehr Prozesse garantieren keine sofortige Übernahme"
+            ],
+            [
+              "etcd Raft",
+              "Eigener Leader und konfiguriertes Mehrheitsquorum",
+              "API-Server-Replikate ersetzen fehlende etcd-Stimmen nicht"
+            ]
+          ]
+        },
+        {
+          "type": "text",
+          "text": "Ein Lease besitzt unter anderem holderIdentity, renewTime und leaseDurationSeconds. Eine Erneuerung zeigt den Besitzanspruch eines Teilnehmers; sie beweist weder, dass alle Regelkreise Fortschritt machen, noch dass Anwendungsdaten aktuell sind. Controller- und Scheduler-Wahlen sind von etcds Raft-Term unabhängig. Kann eine Instanz die Lease nicht zuverlässig erneuern, darf sie nicht unbegrenzt weiter als aktiver Leader arbeiten."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Leases](https://kubernetes.io/docs/concepts/architecture/leases/)."
+        },
+        {
+          "type": "heading",
+          "text": "Stacked oder externes etcd: Kopplung bewusst wählen"
+        },
+        {
+          "type": "text",
+          "text": "In einer gestapelten kubeadm-Topologie wohnen Control-Plane-Komponenten und ein etcd-Mitglied auf demselben Host. Dessen Ausfall entfernt daher zugleich einen API-Endpunkt und eine etcd-Stimme. Externes etcd trennt diese Host-Fehlerdomänen, verlangt aber weitere Maschinen und Netzwerkverbindungen. Drei VMs auf demselben Hypervisor bleiben trotzdem eine gemeinsame physische Fehlerdomäne. Prüfe auch Load Balancer, Stromversorgung und Storage; eine Anzahl von Replikaten allein beschreibt keine HA-Eigenschaft."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [HA topology](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/ha-topology/)."
+        },
+        {
+          "type": "task",
+          "id": "internals-transfer",
+          "title": "Transfer · Verhalten vorhersagen und begründen",
+          "prompt": "Wähle für jedes Szenario die Vorhersage mit der passenden Ursache. Formuliere zuerst selbst, welche Beobachtung deine Diagnose widerlegen würde.",
+          "hint": "Trenne API-Annahme, beobachteten Zustand und lokale Ausführung. Nutze die Internals-Abschnitte zur Begründung.",
+          "solution": "Static Pods lösen das Bootstrap-Problem. HA muss pro Mechanismus betrachtet werden: API-Routing, Lease-basierte Wahl und Raft-Quorum sind unterschiedliche Abhängigkeiten.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Alle Szenarien müssen richtig zugeordnet sein. Dieser Nachweis bewertet die Ursachen-Zuordnung; deine freie Begründung vergleichst du selbst.",
+            "options": [
+              "Ja: Das kubelet betreut Static Pods unabhängig vom Scheduler.",
+              "Kein etcd-Quorum: API-Replikate können konsistente Writes nicht retten.",
+              "API-Endpunkt und lokales etcd-Mitglied fallen gemeinsam aus.",
+              "Die API bestätigt automatisch, dass alle Anwendungen bereit sind."
+            ],
+            "items": [
+              {
+                "prompt": "Scheduler-Prozess gestoppt, kubelet und Static-Pod-Manifeste verfügbar. Kann der API Server neu starten?",
+                "answer": "Ja: Das kubelet betreut Static Pods unabhängig vom Scheduler."
+              },
+              {
+                "prompt": "Drei API Server laufen, aber nur eines von drei etcd-Mitgliedern ist erreichbar.",
+                "answer": "Kein etcd-Quorum: API-Replikate können konsistente Writes nicht retten."
+              },
+              {
+                "prompt": "In einer Stacked-Topologie fällt ein Control-Plane-Host aus.",
+                "answer": "API-Endpunkt und lokales etcd-Mitglied fallen gemeinsam aus."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
       "id": "knowledge",
       "title": "6 · Wissenscheck",
       "navLabel": "Wissenscheck",
@@ -169,7 +297,11 @@
             {
               "id": "q1",
               "prompt": "Wer startet Container über die Runtime-Schnittstelle?",
-              "answers": ["kubelet", "etcd", "kubectl"],
+              "answers": [
+                "kubelet",
+                "etcd",
+                "kubectl"
+              ],
               "correct": 0,
               "explanation": "kubelet koordiniert die lokale Ausführung und verwendet CRI."
             },

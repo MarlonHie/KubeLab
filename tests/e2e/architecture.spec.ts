@@ -35,7 +35,9 @@ test("all nine reference lessons have working content and experiments without ru
     await expect(
       page.getByRole("button", { name: "Wissenscheck auswerten" }),
     ).toBeDisabled();
-    await expect(page.locator(".experiment,.reconciliation")).toBeVisible();
+    await expect(
+      page.locator(".experiment,.reconciliation").first(),
+    ).toBeVisible();
   }
   expect(errors).toEqual([]);
 });

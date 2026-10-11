@@ -70,6 +70,20 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
               ? "Lernstand nicht gespeichert. Exportiere eine Sicherung in den Einstellungen."
               : "Lernstand wird geladen …"}
       </p>
+      {tasks.length > 0 && (
+        <p className="subtle" data-testid="practice-count">
+          {
+            tasks.filter((t) =>
+              p.practiceCompleted.includes(`${lesson.id}/${t.id}`),
+            ).length
+          }{" "}
+          von {tasks.length} Praxisaufgaben geprüft
+          {lesson.sections.some((s) => s.collapsible)
+            ? " · einschließlich optionaler Internals-Aufgaben"
+            : ""}
+          .
+        </p>
+      )}
       <div className="lesson-layout">
         <article className="prose panel architecture-lesson">
           {lesson.goals.length > 0 && (
@@ -86,7 +100,9 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
             {lesson.sections.map((s) => (
               <button
                 key={s.id}
-                onClick={() =>
+                onClick={() => {
+                  const target = document.getElementById(`section-${s.id}`);
+                  if (target instanceof HTMLDetailsElement) target.open = true;
                   document.getElementById(`section-${s.id}`)?.scrollIntoView({
                     behavior: window.matchMedia(
                       "(prefers-reduced-motion: reduce)",
@@ -94,32 +110,40 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
                       ? "instant"
                       : "smooth",
                     block: "start",
-                  })
-                }
+                  });
+                }}
               >
                 {s.navLabel}
               </button>
             ))}
           </nav>
-          {lesson.sections.map((s) => (
-            <section id={`section-${s.id}`} key={s.id}>
-              <h2>{s.title}</h2>
-              <LessonBlocks
-                blocks={s.blocks}
-                lessonId={lesson.id}
-                evidence={evidence}
-                onEvidence={(id, event) =>
-                  setEvidence((old) => ({
-                    ...old,
-                    [id]:
-                      event === null
-                        ? []
-                        : [...new Set([...(old[id] || []), event])],
-                  }))
-                }
-              />
-            </section>
-          ))}
+          {lesson.sections.map((s) => {
+            const Tag = s.collapsible ? "details" : "section";
+            return (
+              <Tag
+                className={s.collapsible ? "internals-section" : undefined}
+                id={`section-${s.id}`}
+                key={s.id}
+              >
+                {s.collapsible ? (
+                  <summary>{s.title} · optional</summary>
+                ) : (
+                  <h2>{s.title}</h2>
+                )}
+                <LessonBlocks
+                  blocks={s.blocks}
+                  lessonId={lesson.id}
+                  evidence={evidence}
+                  onEvidence={(id, event) =>
+                    setEvidence((old) => ({
+                      ...old,
+                      [id]: event === null ? [] : [...(old[id] || []), event],
+                    }))
+                  }
+                />
+              </Tag>
+            );
+          })}
           <div className="lesson-navigation">
             {index > 0 && (
               <Link

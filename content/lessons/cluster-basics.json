@@ -7,7 +7,8 @@
   "goals": [
     "Cluster, Node, Pod und Container auseinanderhalten",
     "Sollzustand von beobachtetem Zustand unterscheiden",
-    "Kubernetes von Anwendung und Infrastruktur abgrenzen"
+    "Kubernetes von Anwendung und Infrastruktur abgrenzen",
+    "API-Identität, Discovery und deklarative Zustandsänderungen voneinander abgrenzen"
   ],
   "sources": [
     {
@@ -17,6 +18,18 @@
     {
       "title": "Pods",
       "url": "https://kubernetes.io/docs/concepts/workloads/pods/"
+    },
+    {
+      "title": "API Overview",
+      "url": "https://kubernetes.io/docs/reference/using-api/"
+    },
+    {
+      "title": "Namespaces",
+      "url": "https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/"
+    },
+    {
+      "title": "Owners",
+      "url": "https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/"
     }
   ],
   "$schema": "../../packages/lesson-engine/lesson.schema.json",
@@ -72,11 +85,23 @@
         {
           "type": "table",
           "caption": "Zuständigkeiten im bestehenden Clusterbeispiel",
-          "headers": ["Objekt", "Aufgabe"],
+          "headers": [
+            "Objekt",
+            "Aufgabe"
+          ],
           "rows": [
-            ["Deployment", "Gewünschte Pod-Replikate beschreiben"],
-            ["Pod", "Planbare Einheit für zusammengehörige Container"],
-            ["Service", "Stabiler Zugang zu wechselnden Endpunkten"]
+            [
+              "Deployment",
+              "Gewünschte Pod-Replikate beschreiben"
+            ],
+            [
+              "Pod",
+              "Planbare Einheit für zusammengehörige Container"
+            ],
+            [
+              "Service",
+              "Stabiler Zugang zu wechselnden Endpunkten"
+            ]
           ]
         }
       ]
@@ -162,6 +187,119 @@
           "solution": "Alle teilen eine Fehlerdomäne. Fällt der Node aus, können alle drei gleichzeitig verloren gehen. Verteilung über Nodes oder Zonen braucht geeignete Platzierungsregeln, freie Kapazität und verfügbare Abhängigkeiten.",
           "verification": {
             "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Optionaler Vertiefungspfad",
+          "text": "Die Grundlagen bleiben dein Einstieg. Hier folgen Implementierungsdetails, Diagnose und Transfer. Die vorhandenen einfachen Experimente dienen als Concept Simulator; zusätzliche Modelle bilden ausdrücklich ausgewählte interne Schritte ab."
+        },
+        {
+          "type": "heading",
+          "text": "Objektidentität ist mehr als ein Name"
+        },
+        {
+          "type": "text",
+          "text": "Teamboards Deployment wird über die Ressource deployments in der API-Gruppe apps angesprochen. kind bezeichnet die Objektart, apiVersion deren Darstellung. Der namespaced REST-Pfad enthält zusätzlich den Namespace und Objektnamen. Eine UID unterscheidet zwei nacheinander unter demselben Namen angelegte Objekte. Ein Controller darf einen gelöschten und neu angelegten Pod deshalb nicht für dieselbe Instanz halten. OwnerReferences beziehen sich auch auf die UID des Eigentümers."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "code": "kubectl api-resources --api-group=apps\nkubectl api-resources --namespaced=false\nkubectl get --raw /apis/apps/v1\nkubectl explain deployment.spec.template --api-version=apps/v1",
+          "caption": "Nur Lesezugriffe im externen Cluster: Discovery zeigt Ressourcen, Scope und unterstützte Verben. explain beschreibt das vom Server bereitgestellte Schema."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [API Overview](https://kubernetes.io/docs/reference/using-api/)."
+        },
+        {
+          "type": "heading",
+          "text": "Deklaratives Ziel und konkurrierende Autoren"
+        },
+        {
+          "type": "text",
+          "text": "Eine Änderung an spec.replicas verlangt ein neues Ziel; sie führt nicht synchron drei Containerstarts aus. Dieselbe gewünschte Konfiguration erneut anzuwenden sollte denselben Zielzustand ergeben. Trotzdem können Defaulting, Admission und andere Feldmanager das gespeicherte Objekt beeinflussen. Vergleiche die API-Repräsentation mit deiner Eingabe, statt vollständige Gleichheit mit der YAML-Datei anzunehmen. Labels wählen Mengen aus, OwnerReferences beschreiben Verantwortung; ein gleicher Labelwert überträgt keine Eigentümerschaft."
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "example",
+          "code": "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: teamboard\n---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: backend-config\n  namespace: teamboard\ndata:\n  LOG_LEVEL: info",
+          "caption": "Eigenes Eingabebeispiel: gültige Ressourcen ohne erfundene spec/status-Felder. Kein ausgeführter Clusterbefehl."
+        },
+        {
+          "type": "table",
+          "caption": "Scope und Isolation",
+          "headers": [
+            "Ressource / Grenze",
+            "Bedeutung",
+            "Was daraus nicht folgt"
+          ],
+          "rows": [
+            [
+              "Deployment teamboard/backend",
+              "Name innerhalb des Namespace",
+              "Deployment default/backend wäre dasselbe Objekt"
+            ],
+            [
+              "Node oder Namespace",
+              "Clusterweiter Scope",
+              "Namespace-Auswahl filtert Nodes"
+            ],
+            [
+              "Namespace teamboard",
+              "Logische API-Grenze",
+              "Automatische Netzisolation oder eigene physische Nodes"
+            ]
+          ]
+        },
+        {
+          "type": "text",
+          "text": "Discovery hilft auch bei Fehlern: Ein fehlender API-Pfad kann eine nicht angebotene Version oder eine nicht installierte CRD bedeuten. Ein existierender Pfad mit fehlender Berechtigung ist ein anderes Problem. Prüfe zuerst Ressource und Scope, danach Identität und erlaubte Verben. Namespace, RBAC, NetworkPolicy und Ressourcengrenzen erfüllen unterschiedliche Aufgaben."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Namespaces](https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/)."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Owners and dependents](https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/)."
+        },
+        {
+          "type": "task",
+          "id": "internals-transfer",
+          "title": "Transfer · Verhalten vorhersagen und begründen",
+          "prompt": "Wähle für jedes Szenario die Vorhersage mit der passenden Ursache. Formuliere zuerst selbst, welche Beobachtung deine Diagnose widerlegen würde.",
+          "hint": "Trenne API-Annahme, beobachteten Zustand und lokale Ausführung. Nutze die Internals-Abschnitte zur Begründung.",
+          "solution": "UID verhindert die Verwechslung ersetzter Objekte. Namespaces ordnen API-Objekte; die Durchsetzung von Netzwerkregeln benötigt passende Policies und ein unterstützendes Netzwerk-Plugin.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Alle Szenarien müssen richtig zugeordnet sein. Dieser Nachweis bewertet die Ursachen-Zuordnung; deine freie Begründung vergleichst du selbst.",
+            "options": [
+              "Neue UID: Identität erneut prüfen; gleicher Name reicht nicht.",
+              "Namespace allein isoliert das Netzwerk nicht; Netzrichtlinien separat prüfen.",
+              "Die API bestätigt automatisch, dass alle Anwendungen bereit sind."
+            ],
+            "items": [
+              {
+                "prompt": "backend wird gelöscht und im gleichen Namespace neu erstellt. Ein Cache sieht den alten Namen.",
+                "answer": "Neue UID: Identität erneut prüfen; gleicher Name reicht nicht."
+              },
+              {
+                "prompt": "Ein Team legt einen Namespace an und erwartet gesperrten Pod-Verkehr.",
+                "answer": "Namespace allein isoliert das Netzwerk nicht; Netzrichtlinien separat prüfen."
+              }
+            ]
           }
         }
       ]

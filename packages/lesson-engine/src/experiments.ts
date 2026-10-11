@@ -1,6 +1,8 @@
 import type { Experiment } from "./types";
 // Only registered model observations can serve as practice evidence. No content-supplied code.
 export const experimentEvents: Record<Experiment, readonly string[]> = {
+  "raft-internals": [],
+  "scheduler-internals": [],
   architecture: [],
   reconciliation: [],
   flow: [],

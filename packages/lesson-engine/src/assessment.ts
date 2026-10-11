@@ -1,3 +1,4 @@
+import { checkChallenge } from "./challenges";
 import type { Question, TaskBlock } from "./types";
 export function gradeQuiz(
   questions: Question[],
@@ -16,6 +17,8 @@ export function checkPractice(
   observations: readonly string[],
 ): { label: string; passed: boolean }[] {
   const v = task.verification;
+  if (v.kind === "state-machine")
+    return checkChallenge(v.challengeId, observations);
   if (v.kind === "reflection") return [];
   if (v.kind === "matching")
     return v.items.map((item, i) => ({

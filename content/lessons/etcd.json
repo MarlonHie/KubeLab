@@ -7,7 +7,8 @@
   "goals": [
     "Mehrheitsquorum für drei und fünf Mitglieder berechnen",
     "Leader-Ausfall von Mehrheitsverlust unterscheiden",
-    "Auswirkungen auf API und laufende Workloads begrenzen"
+    "Auswirkungen auf API und laufende Workloads begrenzen",
+    "Raft-Log und MVCC auseinanderhalten sowie Partition und Watch-Recovery begründen"
   ],
   "sources": [
     {
@@ -21,6 +22,26 @@
     {
       "title": "Kubernetes API-Konzepte",
       "url": "https://kubernetes.io/docs/reference/using-api/api-concepts/"
+    },
+    {
+      "title": "Raft source",
+      "url": "https://github.com/etcd-io/raft/blob/main/raft.go"
+    },
+    {
+      "title": "etcd tuning",
+      "url": "https://etcd.io/docs/v3.6/tuning/"
+    },
+    {
+      "title": "etcd guarantees",
+      "url": "https://etcd.io/docs/v3.6/learning/api_guarantees/"
+    },
+    {
+      "title": "etcd maintenance",
+      "url": "https://etcd.io/docs/v3.6/op-guide/maintenance/"
+    },
+    {
+      "title": "etcdctl v3.6.0",
+      "url": "https://github.com/etcd-io/etcd/blob/v3.6.0/etcdctl/README.md#endpoint-status"
     }
   ],
   "$schema": "../../packages/lesson-engine/lesson.schema.json",
@@ -145,6 +166,179 @@
           "solution": "Vier benötigen drei Stimmen und tolerieren deshalb ebenfalls nur einen Ausfall. Fünf benötigen auch drei, können aber zwei Ausfälle verkraften.",
           "verification": {
             "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Optionaler Vertiefungspfad",
+          "text": "Die Grundlagen bleiben dein Einstieg. Hier folgen Implementierungsdetails, Diagnose und Transfer. Die vorhandenen einfachen Experimente dienen als Concept Simulator; zusätzliche Modelle bilden ausdrücklich ausgewählte interne Schritte ab."
+        },
+        {
+          "type": "heading",
+          "text": "Vier Zähler, vier verschiedene Bedeutungen"
+        },
+        {
+          "type": "table",
+          "caption": "Raft und KV-Zustand",
+          "headers": [
+            "Größe",
+            "Bedeutung",
+            "Was du nicht ableiten darfst"
+          ],
+          "rows": [
+            [
+              "Term",
+              "Epoche der Raft-Wahl; ein Kandidat erhöht seinen Term",
+              "Anzahl erfolgreicher KV-Änderungen"
+            ],
+            [
+              "Log-Index",
+              "Position einer replizierten Operation",
+              "Jeder lokale Eintrag sei bereits bestätigt"
+            ],
+            [
+              "Commit-Index / Applied-Index",
+              "Als committed bekannt / lokal auf Zustandsmaschine angewendet",
+              "Beide seien zu jedem Zeitpunkt identisch"
+            ],
+            [
+              "MVCC-Revision",
+              "Logischer Stand des Key-Value-Stores",
+              "Sie sei gleich Raft-Term, Log-Index oder einer ausrechenbaren Kubernetes-resourceVersion"
+            ]
+          ]
+        },
+        {
+          "type": "text",
+          "text": "Der Leader nimmt Vorschläge ins Log auf und repliziert sie. Für die direkte Bestätigung über Mehrheitszählung ist der Term des Eintrags relevant: Raft bestätigt so einen Eintrag des aktuellen Terms; sein Präfix wird damit ebenfalls committed. Ein neu gewählter Leader kann einen No-op anhängen. Dieser verändert das Raft-Log, ohne einen neuen KV-Wert zu schreiben. Ein unbestätigter Eintrag eines isolierten alten Leaders darf beim Abgleich verschwinden. Eine bestätigte Zustandsänderung darf durch einen regulären Leader-Wechsel nicht rückgängig werden."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [etcd Raft implementation](https://github.com/etcd-io/raft/blob/main/raft.go)."
+        },
+        {
+          "type": "heading",
+          "text": "Heartbeats, Election Timeout und die Partition 1 | 2+3"
+        },
+        {
+          "type": "text",
+          "text": "Heartbeats halten die Verbindung zum Leader sichtbar. Bleiben sie aus, können Wahl-Timer eine Kandidatur auslösen. Timer sind keine garantierte Wiederherstellungsfrist: Latenz, Disk-Verzögerungen und konkurrierende Wahlen beeinflussen den Verlauf. Nach der Partition können zwei Follower einen neuen Leader wählen, wenn sie sich erreichen und die Wahlbedingungen erfüllen. Der isolierte alte Leader erfährt den neuen Term erst über Kommunikation; etcd prüft außerdem die Erreichbarkeit des Quorums. Zwei vorübergehend unterschiedliche lokale Rollen bedeuten daher nicht zwei Seiten mit bestätigten Writes."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [etcd tuning](https://etcd.io/docs/v3.6/tuning/)."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [etcd failure modes](https://etcd.io/docs/v3.6/op-guide/failures/)."
+        },
+        {
+          "type": "heading",
+          "text": "MVCC und Watch-Lücken"
+        },
+        {
+          "type": "text",
+          "text": "MVCC bewahrt ältere Versionen von Schlüsseln bis zur Kompaktierungsgrenze. Eine schreibende Transaktion kann mehrere Schlüssel in derselben Revision ändern; create_revision und mod_revision eines Schlüssels erfüllen andere Zwecke als seine Anzahl an Versionen. Kompaktierung entfernt die logisch abrufbare alte Historie. Defragmentierung gibt nicht mehr benötigten Backend-Platz an das Dateisystem zurück und kann den bearbeiteten Member blockieren. Sie ist kein Ersatz für Kompaktierung, Backup oder Quorum."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [etcd data model](https://etcd.io/docs/v3.6/learning/data_model/)."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [etcd maintenance](https://etcd.io/docs/v3.6/op-guide/maintenance/)."
+        },
+        {
+          "type": "text",
+          "text": "Nach einer kurzen Trennung kann ein Watch ab dem bekannten Bezugspunkt fortgesetzt werden. Liegt dieser vor der verfügbaren Historie, muss der Client einen neuen konsistenten Ausgangsbestand lesen und den Watch darauf aufbauen. etcd garantiert für Watches keine Linearizability wie für linearisierbare Reads. Auf Kubernetes-Ebene signalisiert eine nicht mehr verfügbare resourceVersion unter anderem 410 Gone: lokale Sicht neu aufbauen statt Ereignisse zu erfinden. Ein Cache, der noch Daten enthält, beweist bei Quorumverlust keine aktuelle Clusterwahrheit."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [etcd API guarantees](https://etcd.io/docs/v3.6/learning/api_guarantees/)."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [API watch recovery](https://kubernetes.io/docs/reference/using-api/api-concepts/)."
+        },
+        {
+          "type": "heading",
+          "text": "Diagnose mit echten Werkzeugen"
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "code": "etcdctl --write-out=table endpoint status\netcdctl --write-out=json endpoint status",
+          "caption": "Extern auf einem administrierten etcd-Endpunkt. Endpoints, CA und Client-Zertifikate müssen bereits passend konfiguriert sein; der Browser verbindet sich nicht mit etcd."
+        },
+        {
+          "type": "code",
+          "language": "text",
+          "execution": "output",
+          "code": "RAFT TERM | RAFT INDEX | RAFT APPLIED INDEX",
+          "caption": "Wörtlicher Ausschnitt aus der Tabellenkopfzeile von etcdctl v3.6.0, keine selbst erzeugten Messwerte. Spaltennamen nicht mit MVCC-Revision verwechseln."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [etcdctl v3.6.0 · ENDPOINT STATUS](https://github.com/etcd-io/etcd/blob/v3.6.0/etcdctl/README.md#endpoint-status)."
+        },
+        {
+          "type": "experiment",
+          "id": "internals-model",
+          "kind": "raft-internals"
+        },
+        {
+          "type": "task",
+          "id": "internals-practice",
+          "title": "Zustands-Challenge · Partition und Wiedervereinigung",
+          "prompt": "Folge dem Prüfpfad im Deep Dive Simulator. Bestätige zuerst einen Write und wende ihn an. Trenne dann den Leader, prüfe den erfolglosen Minderheits-Commit, wähle in der Mehrheit und bestätige zuerst den No-op. Schreibe danach einen neuen Wert. Heile das Netz, gleiche den Zustand an und prüfe schließlich vollständigen Quorumverlust. Sage vor jedem Schritt voraus, welcher Zähler sich ändern darf.",
+          "hint": "Vorschlag, Replikation/Commit und lokale Anwendung sind getrennte Aktionen. Eine Abweichung vom Prüfpfad verlangt einen Reset; freies Erkunden bleibt möglich.",
+          "solution": "Die Minderheit kann lokale Vorschläge besitzen, aber keine neuen Commits. Der No-op verbraucht einen Log-Index ohne KV-Revision. Nach Heilung ersetzt der neue Leader nur den unbestätigten Suffix; alle Mitglieder können denselben committed Zustand anwenden. Ohne zwei erreichbare Stimmen stoppt weiterer Commit.",
+          "verification": {
+            "kind": "state-machine",
+            "experimentId": "internals-model",
+            "challengeId": "raft-partition-v1"
+          }
+        },
+        {
+          "type": "task",
+          "id": "internals-transfer",
+          "title": "Transfer · Verhalten vorhersagen und begründen",
+          "prompt": "Wähle für jedes Szenario die Vorhersage mit der passenden Ursache. Formuliere zuerst selbst, welche Beobachtung deine Diagnose widerlegen würde.",
+          "hint": "Trenne API-Annahme, beobachteten Zustand und lokale Ausführung. Nutze die Internals-Abschnitte zur Begründung.",
+          "solution": "Logpositionen beschreiben Konsensoperationen, Revisionen die KV-Historie. Ein Watch ersetzt kein unbegrenzt haltbares Ereignisarchiv. Nur bestätigte Änderungen genießen den Schutz des Konsensprotokolls.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Alle Szenarien müssen richtig zugeordnet sein. Dieser Nachweis bewertet die Ursachen-Zuordnung; deine freie Begründung vergleichst du selbst.",
+            "options": [
+              "Plausibel: Raft-Fortschritt muss keine KV-Änderung enthalten.",
+              "Neuen Ausgangsbestand lesen und Watch mit gültigem Bezugspunkt aufbauen.",
+              "Der unbestätigte Suffix kann nach Heilung ersetzt werden.",
+              "Die API bestätigt automatisch, dass alle Anwendungen bereit sind."
+            ],
+            "items": [
+              {
+                "prompt": "Der Applied-Index steigt beim Anwenden eines No-op, die KV-Revision bleibt gleich.",
+                "answer": "Plausibel: Raft-Fortschritt muss keine KV-Änderung enthalten."
+              },
+              {
+                "prompt": "Ein Watch möchte nach langer Pause vor der Kompaktierungsgrenze fortsetzen.",
+                "answer": "Neuen Ausgangsbestand lesen und Watch mit gültigem Bezugspunkt aufbauen."
+              },
+              {
+                "prompt": "Ein isolierter Leader besitzt einen zusätzlichen Log-Eintrag ohne Mehrheit.",
+                "answer": "Der unbestätigte Suffix kann nach Heilung ersetzt werden."
+              }
+            ]
           }
         }
       ]

@@ -12,6 +12,7 @@ import {
 } from "../../../../packages/lesson-engine/src/assessment";
 import { useProgress } from "../stores/progress";
 import { ArchitectureExperiment } from "./ArchitectureExperiments";
+import { DeepDiveExperiment } from "./DeepDiveExperiments";
 // Deliberately small inline vocabulary. React escapes all text; no raw HTML or executable MDX.
 export function Inline({ text }: { text: string }) {
   const parts = text.split(
@@ -197,7 +198,9 @@ function PracticeTask({
   const [checked, setChecked] = useState(false);
   const v = block.verification;
   const observations =
-    v.kind === "experiment" ? evidence[v.experimentId] || [] : [];
+    v.kind === "experiment" || v.kind === "state-machine"
+      ? evidence[v.experimentId] || []
+      : [];
   const checks = checkPractice(block, answers, observations);
   const key = practiceKey(lessonId, block.id);
   const mastered = p.practiceCompleted.includes(key);
@@ -249,11 +252,15 @@ function PracticeTask({
                 </select>
               </label>
             ))}
-          {(v.kind === "experiment" || checked) && (
+          {(v.kind === "experiment" ||
+            v.kind === "state-machine" ||
+            checked) && (
             <ul className="practice-checks">
               {checks.map((c, i) => (
                 <li key={i}>
-                  {v.kind === "experiment" || checked
+                  {v.kind === "experiment" ||
+                  v.kind === "state-machine" ||
+                  checked
                     ? c.passed
                       ? "✓ "
                       : "○ "
@@ -401,6 +408,18 @@ export function LessonBlocks({
               </aside>
             );
           case "experiment":
+            if (
+              block.kind === "raft-internals" ||
+              block.kind === "scheduler-internals"
+            )
+              return (
+                <DeepDiveExperiment
+                  key={key}
+                  kind={block.kind}
+                  actions={evidence[block.id] || []}
+                  onAction={(action) => onEvidence(block.id, action)}
+                />
+              );
             return (
               <ArchitectureExperiment
                 key={key}

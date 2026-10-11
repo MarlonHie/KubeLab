@@ -7,7 +7,8 @@
   "goals": [
     "Authentifizierung von Autorisierung unterscheiden",
     "Admission in den Schreibpfad einordnen",
-    "Ablehnungen ohne Änderung des Sollzustands erklären"
+    "Ablehnungen ohne Änderung des Sollzustands erklären",
+    "Admission, API-Versionen und zwei Arten von Schreibkonflikten diagnostizieren"
   ],
   "sources": [
     {
@@ -21,6 +22,18 @@
     {
       "title": "Server-side apply",
       "url": "https://kubernetes.io/docs/reference/using-api/server-side-apply/"
+    },
+    {
+      "title": "Webhook good practices",
+      "url": "https://kubernetes.io/docs/concepts/cluster-administration/admission-webhooks-good-practices/"
+    },
+    {
+      "title": "Dynamic admission",
+      "url": "https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/"
+    },
+    {
+      "title": "API concepts",
+      "url": "https://kubernetes.io/docs/reference/using-api/api-concepts/"
     }
   ],
   "$schema": "../../packages/lesson-engine/lesson.schema.json",
@@ -145,6 +158,147 @@
           "solution": "Nein. Deployment und Pod sind unterschiedliche API-Objekte und Schreibvorgänge. Ein Controller kann beim späteren Erzeugen der Pods auf deren eigene Admission-Regeln stoßen.",
           "verification": {
             "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Optionaler Vertiefungspfad",
+          "text": "Die Grundlagen bleiben dein Einstieg. Hier folgen Implementierungsdetails, Diagnose und Transfer. Die vorhandenen einfachen Experimente dienen als Concept Simulator; zusätzliche Modelle bilden ausdrücklich ausgewählte interne Schritte ab."
+        },
+        {
+          "type": "heading",
+          "text": "Ein Schreibrequest hat mehrere Prüfgrenzen"
+        },
+        {
+          "type": "text",
+          "text": "Nach Transport und Authentifizierung prüft Autorisierung, ob die Identität die Operation auf der Ressource ausführen darf. Erst danach greifen passende Admission-Controller für unterstützte schreibende Operationen. Mutating Admission kann das Objekt verändern; Validating Admission prüft den resultierenden Inhalt. Ein erfolgreicher GET durchläuft diesen mutierenden Pfad nicht. Defaulting, Dekodierung, Conversion und Validierung greifen an ressourcenspezifischen Stellen ineinander: Die folgende Tabelle ist eine Verantwortungsfolge, kein vollständiger Call-Stack des API Servers."
+        },
+        {
+          "type": "table",
+          "caption": "Schreibpfad und Fehlergrenzen",
+          "headers": [
+            "Stufe",
+            "Frage",
+            "Diagnose"
+          ],
+          "rows": [
+            [
+              "Authentifizierung",
+              "Welche Identität?",
+              "Zugangsdaten / 401"
+            ],
+            [
+              "Autorisierung",
+              "Darf diese Identität diese Operation?",
+              "RBAC, Verb, Ressource, Namespace / 403"
+            ],
+            [
+              "Mutating Admission",
+              "Welche zulässigen Ergänzungen werden gemacht?",
+              "Webhook-Antwort, Timeout, Reinvocation"
+            ],
+            [
+              "Validating Admission und Ressourcenprüfung",
+              "Ist das resultierende Objekt zulässig?",
+              "Policy-Fehler oder ungültige Felder"
+            ],
+            [
+              "Speicherung / Antwort",
+              "Kann der akzeptierte Zustand persistiert werden?",
+              "Konflikt, Backend-Verfügbarkeit; Timeout kann unbekannten Ausgang bedeuten"
+            ]
+          ]
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Admission controllers](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/)."
+        },
+        {
+          "type": "heading",
+          "text": "Webhooks: Reihenfolge und Fehlerverhalten gehören zum Vertrag"
+        },
+        {
+          "type": "text",
+          "text": "Baue keine Abhängigkeit auf eine zufällig beobachtete Reihenfolge mutierender Webhooks. Eine Mutation muss auch bei erneutem Aufruf sinnvoll bleiben; reinvocationPolicy kann zusätzliche Aufrufe erlauben. Validierende Webhooks müssen das endgültig mutierte Objekt beurteilen. failurePolicy: Fail kann passende Requests bei Aufruffehlern blockieren; Ignore überspringt solche Fehler, erlaubt aber nicht automatisch eine explizite Ablehnung durch den Webhook. timeoutSeconds und ein enger Match-Bereich begrenzen Auswirkungen. Ein ausgefallener Webhook-Service kann deshalb wie ein API-Schreibausfall aussehen, obwohl API Server und etcd gesund sind."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Webhook good practices](https://kubernetes.io/docs/concepts/cluster-administration/admission-webhooks-good-practices/)."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Dynamic admission control](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/)."
+        },
+        {
+          "type": "heading",
+          "text": "Server-Side Apply: Werte und Feldbesitz"
+        },
+        {
+          "type": "text",
+          "text": "SSA verwaltet Feldbesitz über metadata.managedFields. Wenn gitops ein Feld verwaltet und ein anderer Manager dessen Wert ändern will, kann Apply einen Eigentumskonflikt melden. Das unterscheidet sich vom resourceVersion-Konflikt eines veralteten Updates. --force-conflicts übernimmt bewusst betroffene Felder; es ist keine Reparatur für jede 409-Antwort. Bei Teamboard sollten GitOps und ein Autoscaler nicht unkoordiniert denselben Replikatwert vorgeben."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "code": "kubectl apply --server-side --field-manager=teamboard-gitops --dry-run=server -f deployment.yaml\nkubectl -n teamboard get deployment backend -o yaml --show-managed-fields",
+          "caption": "Externes Diagnosebeispiel mit vorhandenem deployment.yaml. Server-Dry-Run durchläuft serverseitige Prüfung ohne Persistierung; passende Webhooks müssen Dry-Run unterstützen. Kein erzwungener Besitzwechsel."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Server-Side Apply](https://kubernetes.io/docs/reference/using-api/server-side-apply/)."
+        },
+        {
+          "type": "heading",
+          "text": "API-Version ist eine Darstellung, kein zweites Objekt"
+        },
+        {
+          "type": "text",
+          "text": "Discovery zeigt angebotene API-Gruppen und Versionen. Wenn mehrere Versionen dieselbe Ressource anbieten, kann der Server zwischen Darstellungen und Storage-Version konvertieren. Die Wahl einer anderen API-Version erzeugt keine unabhängige Kopie. Bei CRDs können Conversion-Webhooks zusätzliche Fehlerquellen sein. Behandle resourceVersion als opaken Wert: damit lassen sich Update-Voraussetzungen und Watch-Fortsetzung ausdrücken, aber keine universelle numerische Reihenfolge beliebiger Objekte berechnen."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [API concepts](https://kubernetes.io/docs/reference/using-api/api-concepts/)."
+        },
+        {
+          "type": "task",
+          "id": "internals-transfer",
+          "title": "Transfer · Verhalten vorhersagen und begründen",
+          "prompt": "Wähle für jedes Szenario die Vorhersage mit der passenden Ursache. Formuliere zuerst selbst, welche Beobachtung deine Diagnose widerlegen würde.",
+          "hint": "Trenne API-Annahme, beobachteten Zustand und lokale Ausführung. Nutze die Internals-Abschnitte zur Begründung.",
+          "solution": "Autorisierung, Admission, optimistische Nebenläufigkeit und SSA-Feldbesitz beantworten verschiedene Fragen. Die gleiche grobe Beobachtung „Schreiben fehlgeschlagen“ reicht nicht für eine Diagnose.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Alle Szenarien müssen richtig zugeordnet sein. Dieser Nachweis bewertet die Ursachen-Zuordnung; deine freie Begründung vergleichst du selbst.",
+            "options": [
+              "Feldbesitzkonflikt: Zuständigkeit klären, bevor Felder erzwungen übernommen werden.",
+              "Admission kann Writes blockieren, obwohl Lesen und etcd funktionieren.",
+              "Objekt erneut lesen und Änderung abgleichen; kein SSA-Besitzwechsel als Standardlösung.",
+              "Die API bestätigt automatisch, dass alle Anwendungen bereit sind."
+            ],
+            "items": [
+              {
+                "prompt": "gitops besitzt spec.replicas; ein zweiter SSA-Manager will einen anderen Wert setzen.",
+                "answer": "Feldbesitzkonflikt: Zuständigkeit klären, bevor Felder erzwungen übernommen werden."
+              },
+              {
+                "prompt": "GET funktioniert, passende CREATEs scheitern bei einem nicht erreichbaren Fail-Webhook.",
+                "answer": "Admission kann Writes blockieren, obwohl Lesen und etcd funktionieren."
+              },
+              {
+                "prompt": "Ein PUT verwendet eine inzwischen veraltete resourceVersion.",
+                "answer": "Objekt erneut lesen und Änderung abgleichen; kein SSA-Besitzwechsel als Standardlösung."
+              }
+            ]
           }
         }
       ]

@@ -7,7 +7,8 @@
   "goals": [
     "kubelet, containerd und runc unterscheiden",
     "Netzwerk- und Volume-Vorbereitung einordnen",
-    "Running und Ready auseinanderhalten"
+    "Running und Ready auseinanderhalten",
+    "CRI-Sandbox, PLEG und Probe-Zustände bei lokalem Container-Lifecycle unterscheiden"
   ],
   "sources": [
     {
@@ -21,6 +22,26 @@
     {
       "title": "Probes",
       "url": "https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/"
+    },
+    {
+      "title": "CRI interface v0.35.0",
+      "url": "https://github.com/kubernetes/cri-api/blob/v0.35.0/pkg/apis/runtime/v1/api.proto"
+    },
+    {
+      "title": "containerd Runtime v2",
+      "url": "https://containerd.io/docs/2.4/runtime-v2/"
+    },
+    {
+      "title": "Generic PLEG v1.35.0",
+      "url": "https://github.com/kubernetes/kubernetes/blob/v1.35.0/pkg/kubelet/pleg/generic.go"
+    },
+    {
+      "title": "Evented PLEG",
+      "url": "https://kubernetes.io/docs/tasks/administer-cluster/switch-to-evented-pleg/"
+    },
+    {
+      "title": "Probes",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/probes/"
     }
   ],
   "$schema": "../../packages/lesson-engine/lesson.schema.json",
@@ -145,6 +166,148 @@
           "solution": "Der Prozess kann beim Start abstürzen, notwendige Konfiguration kann fehlen, und Probes können weiterhin scheitern. Image-Verfügbarkeit ist nur eine Voraussetzung.",
           "verification": {
             "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Optionaler Vertiefungspfad",
+          "text": "Die Grundlagen bleiben dein Einstieg. Hier folgen Implementierungsdetails, Diagnose und Transfer. Die vorhandenen einfachen Experimente dienen als Concept Simulator; zusätzliche Modelle bilden ausdrücklich ausgewählte interne Schritte ab."
+        },
+        {
+          "type": "heading",
+          "text": "CRI ist der Vertrag zwischen kubelet und Runtime"
+        },
+        {
+          "type": "text",
+          "text": "Das kubelet übersetzt die Pod-Anforderungen in Aufrufe an einen CRI-Endpunkt. Der Vertrag trennt RuntimeService und ImageService. RunPodSandbox bereitet eine Sandbox vor; CreateContainer und StartContainer betreffen Container darin. Ein Pod-Sandbox-Fehler ist deshalb nicht dasselbe wie ein fehlgeschlagener Anwendungsprozess. Ein Neustart eines Containers kann innerhalb derselben Pod-Identität geschehen; ein neuer Ersatz-Pod besitzt dagegen eine neue UID."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [CRI v1 interface · v0.35.0](https://github.com/kubernetes/cri-api/blob/v0.35.0/pkg/apis/runtime/v1/api.proto)."
+        },
+        {
+          "type": "text",
+          "text": "Bei containerd übernimmt dessen CRI-Integration die Umsetzung. Runtime-Shims und eine OCI-Runtime wie runc gehören zur Ausführungskette, sind aber nicht synonym mit CRI. Die konkrete Sandbox- und Netzwerkimplementierung hängt von Runtime, Betriebssystem und Konfiguration ab. Volumes und Netzwerk müssen nutzbar werden; ein Node-Binding allein bestätigt keine dieser Voraussetzungen."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [containerd Runtime v2](https://containerd.io/docs/2.4/runtime-v2/)."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "code": "sudo crictl pods\nsudo crictl ps -a\nsudo journalctl -u kubelet --since \"10 minutes ago\"",
+          "caption": "Externe, lesende Node-Diagnose. crictl benötigt einen passend konfigurierten Runtime-Endpunkt. Sandbox, Containerzustand und kubelet-Meldungen gemeinsam untersuchen."
+        },
+        {
+          "type": "heading",
+          "text": "PLEG beobachtet Laufzeitzustand"
+        },
+        {
+          "type": "text",
+          "text": "Das Generic Pod Lifecycle Event Generator-Modell des kubelet fragt die Runtime periodisch ab und vergleicht beobachtete Containerzustände. Daraus entstehen Lifecycle-Ereignisse, die weitere Pod-Synchronisation anstoßen können. Nur API-Watches zu betrachten würde einen lokal abgestürzten Container nicht vollständig erklären. Evented PLEG kann Runtime-Ereignisse verwenden; Unterstützung, Feature-Konfiguration und Rückfallverhalten müssen zur Version passen. Es ist keine allgemeine Zusage, dass jeder Cluster ausschließlich ereignisgetrieben arbeitet."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Generic PLEG · Kubernetes v1.35.0](https://github.com/kubernetes/kubernetes/blob/v1.35.0/pkg/kubelet/pleg/generic.go)."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Evented PLEG](https://kubernetes.io/docs/tasks/administer-cluster/switch-to-evented-pleg/)."
+        },
+        {
+          "type": "heading",
+          "text": "Probes kontrollieren verschiedene Übergänge"
+        },
+        {
+          "type": "table",
+          "caption": "Probe und Folge",
+          "headers": [
+            "Probe",
+            "Was bei Fehlschlag passiert",
+            "Häufige Fehldiagnose"
+          ],
+          "rows": [
+            [
+              "Startup",
+              "Solange sie nicht erfolgreich ist, starten Liveness/Readiness-Prüfungen nicht; wiederholtes Scheitern kann Neustart auslösen",
+              "Langsamer Start sei zwangsläufig ein Liveness-Problem"
+            ],
+            [
+              "Readiness",
+              "Container wird als nicht bereit behandelt; allein dadurch kein Neustart",
+              "Jeder nicht bereite Container müsse neu gestartet werden"
+            ],
+            [
+              "Liveness",
+              "Bei erreichtem Fehler-Schwellwert Container beenden und nach geltender Restart-Policy behandeln",
+              "Liveness könne eine kaputte externe Datenbank reparieren"
+            ]
+          ]
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "example",
+          "code": "startupProbe:\n  httpGet: {path: /startup, port: 8080}\n  periodSeconds: 5\n  failureThreshold: 30\nreadinessProbe:\n  httpGet: {path: /ready, port: 8080}\n  periodSeconds: 5\nlivenessProbe:\n  httpGet: {path: /live, port: 8080}\n  periodSeconds: 10",
+          "caption": "Eigenes Container-Fragment. Die Anwendung muss diese Endpunkte implementieren. Schwellwerte sind Beispielkonfiguration und keine gemessene Startdauer."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Container probes](https://kubernetes.io/docs/concepts/workloads/pods/probes/)."
+        },
+        {
+          "type": "heading",
+          "text": "Termination und Status nicht verwechseln"
+        },
+        {
+          "type": "text",
+          "text": "Bei regulärer Beendigung zählt die Grace Period bereits während eines preStop-Hooks. Nach dem Hook fordert das kubelet die Runtime zur Beendigung auf; nicht rechtzeitig beendete Prozesse können am Ende zwangsweise beendet werden. Pod-Phase, Containerzustand und die in kubectl angezeigte STATUS-Spalte sind unterschiedliche Sichten: CrashLoopBackOff ist keine eigene Pod-Phase. Ein Running-Pod kann nicht bereite oder wiederholt neu startende Container enthalten."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Pod lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/)."
+        },
+        {
+          "type": "task",
+          "id": "internals-transfer",
+          "title": "Transfer · Verhalten vorhersagen und begründen",
+          "prompt": "Wähle für jedes Szenario die Vorhersage mit der passenden Ursache. Formuliere zuerst selbst, welche Beobachtung deine Diagnose widerlegen würde.",
+          "hint": "Trenne API-Annahme, beobachteten Zustand und lokale Ausführung. Nutze die Internals-Abschnitte zur Begründung.",
+          "solution": "API-Zuordnung, Sandbox-Erzeugung, Prozessstart und Verkehrsbereitschaft sind getrennte Übergänge. Probes sollten das passende Anwendungssignal prüfen, statt jedes externe Problem mit Neustarts zu beantworten.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Alle Szenarien müssen richtig zugeordnet sein. Dieser Nachweis bewertet die Ursachen-Zuordnung; deine freie Begründung vergleichst du selbst.",
+            "options": [
+              "Liveness wird noch nicht ausgeführt; zuerst den Startup-Pfad untersuchen.",
+              "Plausibel: Readiness allein startet den Container nicht neu.",
+              "CRI-/Sandbox-Vorbereitung am Node prüfen; Binding beweist keinen Containerstart.",
+              "Die API bestätigt automatisch, dass alle Anwendungen bereit sind."
+            ],
+            "items": [
+              {
+                "prompt": "Startup-Probe ist noch nicht erfolgreich; Liveness würde bereits fehlschlagen.",
+                "answer": "Liveness wird noch nicht ausgeführt; zuerst den Startup-Pfad untersuchen."
+              },
+              {
+                "prompt": "Readiness schlägt fehl, der Containerprozess läuft weiter.",
+                "answer": "Plausibel: Readiness allein startet den Container nicht neu."
+              },
+              {
+                "prompt": "Ein Pod ist gebunden, crictl zeigt keine nutzbare Sandbox.",
+                "answer": "CRI-/Sandbox-Vorbereitung am Node prüfen; Binding beweist keinen Containerstart."
+              }
+            ]
           }
         }
       ]

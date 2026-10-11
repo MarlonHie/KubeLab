@@ -7,7 +7,9 @@ export type Experiment =
   | "scheduler"
   | "runtime"
   | "flow"
-  | "failure";
+  | "failure"
+  | "raft-internals"
+  | "scheduler-internals";
 export interface Question {
   id: string;
   prompt: string;
@@ -16,6 +18,11 @@ export interface Question {
   explanation: string;
 }
 export type Verification =
+  | {
+      kind: "state-machine";
+      experimentId: string;
+      challengeId: "raft-partition-v1" | "scheduler-pipeline-v1";
+    }
   | { kind: "reflection" }
   | {
       kind: "matching";
@@ -75,6 +82,7 @@ export interface Lesson {
     id: string;
     title: string;
     navLabel: string;
+    collapsible?: boolean;
     blocks: LessonBlock[];
   }[];
   sources: { title: string; url: string }[];

@@ -7,7 +7,8 @@
   "goals": [
     "Den gesamten logischen Ablauf erklären",
     "Objekte und Prozesse in der richtigen Reihenfolge zuordnen",
-    "Den ersten blockierten Übergang diagnostizieren"
+    "Den ersten blockierten Übergang diagnostizieren",
+    "Generation, Status und Events zu einer begründeten Rollout-Diagnose verbinden"
   ],
   "sources": [
     {
@@ -17,6 +18,14 @@
     {
       "title": "Pod-Lebenszyklus",
       "url": "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+    },
+    {
+      "title": "Deployment API",
+      "url": "https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/deployment-v1/"
+    },
+    {
+      "title": "Events API",
+      "url": "https://kubernetes.io/docs/reference/kubernetes-api/cluster-resources/event-v1/"
     }
   ],
   "$schema": "../../packages/lesson-engine/lesson.schema.json",
@@ -178,6 +187,139 @@
           "solution": "Es existieren noch keine passenden Pod-Objekte; die vorhandenen Pods sind nicht bereit; oder der Service-Selektor beziehungsweise Namespace passt nicht. Danach folgen Port- und Netzwerkanalyse.",
           "verification": {
             "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Optionaler Vertiefungspfad",
+          "text": "Die Grundlagen bleiben dein Einstieg. Hier folgen Implementierungsdetails, Diagnose und Transfer. Die vorhandenen einfachen Experimente dienen als Concept Simulator; zusätzliche Modelle bilden ausdrücklich ausgewählte interne Schritte ab."
+        },
+        {
+          "type": "heading",
+          "text": "Generation ist Zieländerung, observedGeneration ist Beobachtung"
+        },
+        {
+          "type": "text",
+          "text": "Bei einem Deployment beschreibt metadata.generation die Generation des gewünschten Zustands. status.observedGeneration zeigt, welche Generation der Deployment-Controller zuletzt beobachtet hat. Sind beide gleich, ist die Beobachtung aufgeholt; daraus folgt noch nicht, dass alle Replikate aktualisiert oder verfügbar sind. Lies zusätzlich updatedReplicas, readyReplicas, availableReplicas und die Conditions. Diese Semantik ist ressourcenspezifisch: nicht jede API-Art besitzt ein gleich aufgebautes status.observedGeneration."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Deployment API](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/deployment-v1/)."
+        },
+        {
+          "type": "table",
+          "caption": "Diagnose als Hypothese, nicht als erfundene Ausgabe",
+          "headers": [
+            "Angenommene Beobachtung",
+            "Begründete Folgerung",
+            "Nächste Prüfung"
+          ],
+          "rows": [
+            [
+              "generation neuer als observedGeneration",
+              "Controller hat dieses Ziel noch nicht im Status bestätigt",
+              "Controller-Zugriff und Fortschritt prüfen"
+            ],
+            [
+              "Generation aufgeholt, updatedReplicas zu klein",
+              "Aktualisierung noch unvollständig",
+              "ReplicaSets, Rollout-Regeln, Create-Fehler"
+            ],
+            [
+              "Pods vorhanden, spec.nodeName leer",
+              "Node-Zuweisung noch ausstehend",
+              "Scheduling-Bedingung und Events"
+            ],
+            [
+              "Pods gebunden, Container Waiting",
+              "Problem liegt nach Zuordnung",
+              "Image, Sandbox, Volumes, Runtime"
+            ],
+            [
+              "Pods Ready, Anwendung unerreichbar",
+              "Readiness allein prüft nicht den kompletten Zugriff",
+              "Service-Auswahl, EndpointSlices, Ports, Netzwerk"
+            ]
+          ]
+        },
+        {
+          "type": "heading",
+          "text": "Ein Rollout ist eine Folge asynchroner Beobachtungen"
+        },
+        {
+          "type": "text",
+          "text": "Eine Änderung der Deployment-Pod-Vorlage führt normalerweise zu einem neuen ReplicaSet; eine reine Skalierung verändert nicht auf dieselbe Weise die Vorlage. Der ReplicaSet-Controller fordert Pod-Objekte an, der Scheduler bindet, das kubelet meldet Laufzeitzustand. Zwischen diesen Schritten kann jedes API-Objekt bereits existieren, während sein Status noch hinterherläuft. Nutze OwnerReferences und UIDs zur Zuordnung; ähnlich aussehende Namen aus einem alten Rollout sind kein Beweis für das aktuelle Ziel."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "code": "kubectl -n teamboard get deployment backend -o yaml\nkubectl -n teamboard get replicasets,pods -l app=backend -o wide\nkubectl -n teamboard get events --sort-by=.metadata.creationTimestamp\nkubectl -n teamboard rollout status deployment/backend --timeout=120s",
+          "caption": "Externe Diagnose bei vorhandener Teamboard-Installation. 120 Sekunden begrenzen nur dieses Warten; sie garantieren keine Rollout-Dauer. Labels gegebenenfalls an die Installation anpassen."
+        },
+        {
+          "type": "heading",
+          "text": "Events sind Hinweise mit begrenzter Aufbewahrung"
+        },
+        {
+          "type": "text",
+          "text": "Events können wiederholte Beobachtungen bündeln und werden nicht unbegrenzt aufbewahrt. Das Sortieren nach creationTimestamp ist daher keine vollständige kausale Zeitleiste aller Komponenten. Korrelieren solltest du Objekt-UID, Reason, involviertes Objekt, Conditions und gegebenenfalls Logs. Fehlende Events beweisen nicht, dass kein Fehler aufgetreten ist. Ein Controller-Log über erfolgreichen Sync und ein späterer Scheduling-Fehler können beide korrekt sein."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Kubernetes Events API](https://kubernetes.io/docs/reference/kubernetes-api/cluster-resources/event-v1/)."
+        },
+        {
+          "type": "heading",
+          "text": "Fristüberschreitung ist keine automatische Reparatur"
+        },
+        {
+          "type": "text",
+          "text": "Wenn ein Deployment innerhalb seiner Progress-Frist keinen ausreichenden Fortschritt macht, kann es ProgressDeadlineExceeded in der Progressing-Condition melden. Kubernetes führt dadurch nicht automatisch ein Rollback durch. Prüfe die blockierende Phase und entscheide über Korrektur oder kontrolliertes Zurückrollen. Auch kubectl rollout status ersetzt keinen Ende-zu-Ende-Test der Teamboard-Anwendung."
+        },
+        {
+          "type": "task",
+          "id": "internals-transfer",
+          "title": "Transfer · Verhalten vorhersagen und begründen",
+          "prompt": "Wähle für jedes Szenario die Vorhersage mit der passenden Ursache. Formuliere zuerst selbst, welche Beobachtung deine Diagnose widerlegen würde.",
+          "hint": "Trenne API-Annahme, beobachteten Zustand und lokale Ausführung. Nutze die Internals-Abschnitte zur Begründung.",
+          "solution": "Eine Diagnose verbindet mehrere Objekte und Zeithorizonte. Gleichheit von Generationen bestätigt Beobachtung, nicht Betriebsbereitschaft. Events ergänzen Status, garantieren aber keine lückenlose Historie.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Alle Szenarien müssen richtig zugeordnet sein. Dieser Nachweis bewertet die Ursachen-Zuordnung; deine freie Begründung vergleichst du selbst.",
+            "options": [
+              "Ziel beobachtet, Verfügbarkeit noch nicht erreicht; Pod- und Rollout-Zustände untersuchen.",
+              "Fehlenden Fortschritt diagnostizieren; es erfolgt dadurch kein automatisches Rollback.",
+              "Events können fehlen oder abgelaufen sein; Objektzustand und Scheduling weiter prüfen.",
+              "Die API bestätigt automatisch, dass alle Anwendungen bereit sind."
+            ],
+            "items": [
+              {
+                "prompt": "observedGeneration entspricht generation, aber availableReplicas bleibt unter dem Ziel.",
+                "answer": "Ziel beobachtet, Verfügbarkeit noch nicht erreicht; Pod- und Rollout-Zustände untersuchen."
+              },
+              {
+                "prompt": "Progressing meldet ProgressDeadlineExceeded.",
+                "answer": "Fehlenden Fortschritt diagnostizieren; es erfolgt dadurch kein automatisches Rollback."
+              },
+              {
+                "prompt": "Die Event-Liste ist leer, der Pod bleibt Pending.",
+                "answer": "Events können fehlen oder abgelaufen sein; Objektzustand und Scheduling weiter prüfen."
+              }
+            ]
           }
         }
       ]

@@ -7,7 +7,8 @@
   "goals": [
     "Requests statt aktueller Nutzung für Ressourcenfilter verwenden",
     "Harte Bedingungen von Präferenzen unterscheiden",
-    "Toleration nicht als Platzierungsgarantie missverstehen"
+    "Toleration nicht als Platzierungsgarantie missverstehen",
+    "Framework-Phasen, harte Constraints, Scores und Grenzen der Preemption nachvollziehen"
   ],
   "sources": [
     {
@@ -21,6 +22,26 @@
     {
       "title": "Ressourcenverwaltung",
       "url": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/"
+    },
+    {
+      "title": "Scheduling Framework",
+      "url": "https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/"
+    },
+    {
+      "title": "Topology spread",
+      "url": "https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/"
+    },
+    {
+      "title": "PV node affinity",
+      "url": "https://kubernetes.io/docs/concepts/storage/persistent-volumes/#node-affinity"
+    },
+    {
+      "title": "Preemption",
+      "url": "https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/"
+    },
+    {
+      "title": "Debug Running Pods",
+      "url": "https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/"
     }
   ],
   "$schema": "../../packages/lesson-engine/lesson.schema.json",
@@ -141,6 +162,159 @@
           "solution": "CPU ist nur eine Bedingung. Speicher, Affinity, Taints, Topologie, Volume-Bindung und weitere Filter können sämtliche Nodes ausschließen.",
           "verification": {
             "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Optionaler Vertiefungspfad",
+          "text": "Die Grundlagen bleiben dein Einstieg. Hier folgen Implementierungsdetails, Diagnose und Transfer. Die vorhandenen einfachen Experimente dienen als Concept Simulator; zusätzliche Modelle bilden ausdrücklich ausgewählte interne Schritte ab."
+        },
+        {
+          "type": "heading",
+          "text": "Zwei Zyklen, mehrere Erweiterungspunkte"
+        },
+        {
+          "type": "text",
+          "text": "Der Scheduler beobachtet noch ungebundene Pods. QueueSort beeinflusst die Reihenfolge der Warteschlange; PreFilter kann Daten vorbereiten, Filter verwirft unzulässige Nodes. Wenn keine Kandidaten bleiben, können PostFilter-Plugins versuchen, das Hindernis zu lösen. Sonst bereiten PreScore und Score die Rangfolge vor; pluginspezifische Normalisierung und Gewichte beeinflussen den Gesamtscore. Ein hoher Score kann keinen zuvor herausgefilterten Node zurückholen."
+        },
+        {
+          "type": "text",
+          "text": "Reserve hält gegebenenfalls Plugin-Zustand für die gewählte Zuordnung. Permit kann zulassen, ablehnen oder warten lassen. PreBind bereitet das Binding vor, etwa durch Volume-Binding; Bind schreibt die Node-Zuordnung, PostBind kann nachgelagerte Arbeit ausführen. Bei Fehlern nach Reserve wird über Unreserve aufgeräumt. Scheduling-Zyklen sind nacheinander organisiert; Binding-Zyklen können überlappen. Reservierung und API-Binding sind deshalb getrennte Zustände."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Scheduling Framework](https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/)."
+        },
+        {
+          "type": "heading",
+          "text": "Constraints sind nicht austauschbar"
+        },
+        {
+          "type": "table",
+          "caption": "Vier Gründe für unterschiedliche Entscheidungen",
+          "headers": [
+            "Regel",
+            "Prüfung",
+            "Beispiel für Teamboard"
+          ],
+          "rows": [
+            [
+              "Node-/Pod-Affinity",
+              "Erforderliche Regeln beschränken zulässige Nodes; bevorzugte Regeln beeinflussen Scores",
+              "Backend nur auf geeigneten Nodes, Replikate nicht neben derselben App"
+            ],
+            [
+              "Topology Spread",
+              "maxSkew, topologyKey und whenUnsatisfiable wirken zusammen",
+              "DoNotSchedule ist eine harte Schranke; ScheduleAnyway bevorzugt bessere Verteilung"
+            ],
+            [
+              "Volume-Binding",
+              "PV-Topologie und Binding-/Provisionierungsmodus beachten",
+              "Ein zonales PV kann einen sonst freien Node ausschließen"
+            ],
+            [
+              "CPU / Taints",
+              "Requests und tolerierte Scheduling-Hindernisse prüfen",
+              "Toleration schafft weder zusätzliche CPU noch eine bevorzugte Platzierung"
+            ]
+          ]
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "example",
+          "code": "topologySpreadConstraints:\n  - maxSkew: 1\n    topologyKey: topology.kubernetes.io/zone\n    whenUnsatisfiable: DoNotSchedule\n    labelSelector:\n      matchLabels:\n        app: backend",
+          "caption": "Eigenes Fragment für spec.template.spec eines Deployments. Gleiche Labels auf der Pod-Vorlage und passende Zone-Labels auf Nodes sind Voraussetzung. Kein vollständiges Manifest und keine simulierte kubectl-Ausgabe."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Pod topology spread](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/)."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [PV node affinity](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#node-affinity)."
+        },
+        {
+          "type": "heading",
+          "text": "Preemption ist kein universeller Ausweg"
+        },
+        {
+          "type": "text",
+          "text": "Ein höher priorisierter Pod kann unter den passenden Bedingungen niedrig priorisierte Pods verdrängen lassen. Der Scheduler untersucht, ob dadurch ein Node für ihn geeignet würde. Zusätzliche freie CPU kann helfen; eine inkompatible PV-Zone wird dadurch nicht kompatibel. nominatedNodeName ist keine abgeschlossene Bindung und garantiert keine sofortige Ausführung. Opfer brauchen gegebenenfalls ihre Beendigungszeit. PodDisruptionBudgets werden beim Preemption-Verfahren berücksichtigt, sind dort aber keine ausnahmslos eingehaltene Schranke."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Pod priority and preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)."
+        },
+        {
+          "type": "code",
+          "language": "text",
+          "execution": "output",
+          "code": "Warning\nFailedScheduling\nNode didn't have enough resource: CPU, requested: 1000, used: 1420, capacity: 2000",
+          "caption": "Wörtlich ausgewählte Felder/Fehlermeldung aus dem offiziellen Debug-Running-Pods-Beispiel. Historisches Ausgabeformat; heutige Events können anders formuliert sein. Keine Ausgabe des Browser-Modells."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Debug Running Pods · describe / Events](https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/)."
+        },
+        {
+          "type": "experiment",
+          "id": "internals-model",
+          "kind": "scheduler-internals"
+        },
+        {
+          "type": "task",
+          "id": "internals-practice",
+          "title": "Zustands-Challenge · Fehlgeschlagenes Binding reparieren",
+          "prompt": "Durchlaufe Filter, Score, Reserve und Permit. Löse dann den PreBind-Fehler aus und beobachte Unreserve. Reihe den Pod neu ein und durchlaufe alle Phasen erneut, diesmal mit erfolgreichem PreBind und Bind. Begründe, warum weder Filter-Erfolg noch Reservierung bereits einen laufenden Pod bedeuten.",
+          "hint": "Der zweite Versuch startet wieder in der Queue. Bind vor erfolgreichem PreBind zählt nicht und verlangt für den Prüfpfad einen Reset.",
+          "solution": "Harte Filter schließen worker-a und worker-c aus. Der Lehr-Score wählt worker-d. Beim ersten Versuch räumt Unreserve die Reservierung auf. Erst ein vollständiger neuer Versuch kann binden; kubelet und Runtime müssen anschließend noch starten und Readiness herstellen.",
+          "verification": {
+            "kind": "state-machine",
+            "experimentId": "internals-model",
+            "challengeId": "scheduler-pipeline-v1"
+          }
+        },
+        {
+          "type": "task",
+          "id": "internals-transfer",
+          "title": "Transfer · Verhalten vorhersagen und begründen",
+          "prompt": "Wähle für jedes Szenario die Vorhersage mit der passenden Ursache. Formuliere zuerst selbst, welche Beobachtung deine Diagnose widerlegen würde.",
+          "hint": "Trenne API-Annahme, beobachteten Zustand und lokale Ausführung. Nutze die Internals-Abschnitte zur Begründung.",
+          "solution": "Harte Zulässigkeit kommt vor Optimierung. Fehler im Binding-Zyklus müssen zuvor reservierten Plugin-Zustand aufräumen. Preemption darf nur als Lösung betrachtet werden, wenn die verletzten Voraussetzungen dadurch tatsächlich erfüllbar werden.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Alle Szenarien müssen richtig zugeordnet sein. Dieser Nachweis bewertet die Ursachen-Zuordnung; deine freie Begründung vergleichst du selbst.",
+            "options": [
+              "Filter schließt ihn aus; der Score kann das Hindernis nicht aufheben.",
+              "Unreserve räumt auf; vor dem nächsten Binding ist ein neuer Versuch nötig.",
+              "Preemption allein löst den Topologiekonflikt nicht.",
+              "Die API bestätigt automatisch, dass alle Anwendungen bereit sind."
+            ],
+            "items": [
+              {
+                "prompt": "Ein Node hätte den besten CPU-Score, sein PV liegt aber in einer inkompatiblen Zone.",
+                "answer": "Filter schließt ihn aus; der Score kann das Hindernis nicht aufheben."
+              },
+              {
+                "prompt": "PreBind schlägt nach einer Reservierung fehl.",
+                "answer": "Unreserve räumt auf; vor dem nächsten Binding ist ein neuer Versuch nötig."
+              },
+              {
+                "prompt": "Ein höher priorisierter Pod verdrängt CPU-Verbraucher auf einem Node mit falscher PV-Zone.",
+                "answer": "Preemption allein löst den Topologiekonflikt nicht."
+              }
+            ]
           }
         }
       ]

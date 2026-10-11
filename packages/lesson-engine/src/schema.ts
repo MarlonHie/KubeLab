@@ -1,3 +1,4 @@
+import { challengeModels } from "./challenges";
 import Ajv from "ajv";
 import schema from "../lesson.schema.json" with { type: "json" };
 import type { Lesson } from "./types";
@@ -47,6 +48,11 @@ export function parseLesson(value: unknown): Lesson {
           v.items.some((i) => !v.options.includes(i.answer))
         )
           throw new Error(`${lesson.id}: Unbekannte Zuordnungslösung`);
+        if (
+          v.kind === "state-machine" &&
+          experiments.get(v.experimentId) !== challengeModels[v.challengeId]
+        )
+          throw new Error(`${lesson.id}: Ungültige Zustandsmaschinen-Prüfung`);
         if (v.kind === "experiment") {
           const kind = experiments.get(v.experimentId);
           if (

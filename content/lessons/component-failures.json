@@ -7,7 +7,8 @@
   "goals": [
     "Koordinationsausfall von Workload-Ausfall trennen",
     "Den Umfang einer Störung aus der Topologie ableiten",
-    "Recovery ohne falsche Sofortgarantien planen"
+    "Recovery ohne falsche Sofortgarantien planen",
+    "Node-Partitionen zeitlich analysieren und Restore von regulärer Wiederverfügbarkeit abgrenzen"
   ],
   "sources": [
     {
@@ -21,6 +22,14 @@
     {
       "title": "etcd-Fehlermodi",
       "url": "https://etcd.io/docs/v3.5/op-guide/failures/"
+    },
+    {
+      "title": "Taints",
+      "url": "https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/"
+    },
+    {
+      "title": "etcd recovery",
+      "url": "https://etcd.io/docs/v3.6/op-guide/recovery/"
     }
   ],
   "$schema": "../../packages/lesson-engine/lesson.schema.json",
@@ -156,6 +165,147 @@
           "solution": "Bestehende Datenpfade und Container können weiterarbeiten. Änderungen, neue Platzierungen, Fehlerkorrektur und verlässliche Statusbeobachtung sind jedoch eingeschränkt; der nächste Workload-Ausfall kann sich nicht normal erholen.",
           "verification": {
             "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Optionaler Vertiefungspfad",
+          "text": "Die Grundlagen bleiben dein Einstieg. Hier folgen Implementierungsdetails, Diagnose und Transfer. Die vorhandenen einfachen Experimente dienen als Concept Simulator; zusätzliche Modelle bilden ausdrücklich ausgewählte interne Schritte ab."
+        },
+        {
+          "type": "heading",
+          "text": "Eine Fehlerzeitleiste braucht Bedingungen, keine magische Stoppuhr"
+        },
+        {
+          "type": "table",
+          "caption": "Beispiel: Worker verliert die Verbindung zur Control Plane",
+          "headers": [
+            "Phase",
+            "Beobachtbares Verhalten",
+            "Abhängigkeit"
+          ],
+          "rows": [
+            [
+              "t0 · Verbindung bricht",
+              "Lokale Container können weiterlaufen; letzte API-Sicht bleibt zunächst stehen",
+              "Strom, Runtime und lokale Abhängigkeiten"
+            ],
+            [
+              "Erkennung",
+              "Node-Lease / Status werden nicht ausreichend erneuert; Ready kann Unknown werden",
+              "Überwachungsintervalle und Konfiguration"
+            ],
+            [
+              "Reaktion",
+              "Unreachable-/NotReady-Taints und Eviction-Regeln greifen",
+              "Tolerations, Controller, API-Verfügbarkeit"
+            ],
+            [
+              "Ersatz",
+              "Controller erzeugt Ersatz, Scheduler sucht Platz",
+              "Kapazität, Policies, Images und Volumes"
+            ],
+            [
+              "Anwendung erholt sich",
+              "Bereitschaft und Datenzugriff müssen erfolgreich sein",
+              "App-Zustand, Storage und gegebenenfalls Fencing"
+            ]
+          ]
+        },
+        {
+          "type": "text",
+          "text": "Viele gewöhnliche Pods erhalten standardmäßig zeitlich begrenzte NoExecute-Tolerations von 300 Sekunden für not-ready und unreachable. Das ist weder eine allgemeine Ausfallerkennungsdauer noch eine garantierte Wiederherstellungszeit. Explizite Tolerations, DaemonSet-Pods, Ausmaß des Zonenausfalls und Controller-Einstellungen verändern das Verhalten. Ein ausgeschalteter Node kann keine Container ausführen; ein lediglich isolierter Node möglicherweise schon."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Nodes and node health](https://kubernetes.io/docs/concepts/architecture/nodes/)."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Taints and tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/)."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "code": "kubectl get nodes\nkubectl describe node worker-01\nkubectl -n kube-node-lease get lease worker-01 -o yaml\nkubectl -n teamboard get pods -o wide",
+          "caption": "Lesende Diagnose in einem echten Cluster. worker-01 und teamboard durch vorhandene Namen ersetzen. Ein fehlender API-Zugriff liefert keine aktuelle Aussage über lokale Prozesse."
+        },
+        {
+          "type": "heading",
+          "text": "API-Ausfall: neue Koordination und vorhandene Ausführung trennen"
+        },
+        {
+          "type": "text",
+          "text": "Bei einer defekten API-Instanz kann ein Load Balancer auf andere gesunde Instanzen umschalten. Sind alle erreichbaren API-Pfade blockiert, funktionieren neue reguläre API-Beobachtungen und Writes nicht. Bereits programmierte Datenpfade und lokale Container können weiterarbeiten. Neue Endpunkte, neue Ziele und Statusaustausch bleiben jedoch eingeschränkt. Nach Rückkehr des Zugriffs müssen Watches und Caches wieder eine gültige Sicht aufbauen; eine grüne Load-Balancer-Probe beweist noch keinen vollständigen fachlichen Fortschritt."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Cluster architecture](https://kubernetes.io/docs/concepts/architecture/)."
+        },
+        {
+          "type": "heading",
+          "text": "Quorumverlust ist nicht automatisch Datenverlust"
+        },
+        {
+          "type": "text",
+          "text": "Sind Mitglieder nur vorübergehend unerreichbar, ist die Wiederherstellung von Netzwerk oder Hosts bei intakten Daten zuerst von einem permanenten Mehrheitsverlust zu unterscheiden. Ein Snapshot-Restore erstellt dagegen einen neuen logischen etcd-Cluster aus einem gesicherten Stand. Alle wiederhergestellten Mitglieder müssen denselben Snapshot verwenden; alte und neue Cluster dürfen nicht als konkurrierende Wahrheiten verwendet werden. Änderungen nach dem Snapshot sind damit nicht automatisch wiederhergestellt."
+        },
+        {
+          "type": "text",
+          "text": "Für Kubernetes beschreibt etcd 3.6 Restore mit Revision Bump und Markierung der erhöhten Revisionen als kompaktierte Historie. Dadurch werden alte Watch-Annahmen ungültig und Clients müssen ihre Sicht erneuern. Die Höhe des Bumps muss zum alten Stand und Schreibaufkommen passen. Das ist ein geplantes Recovery-Verfahren mit gesicherter Ausgangslage, kein beliebiger Befehl bei jedem Timeout. Datenbank- und Volume-Recovery bleiben zusätzlich erforderlich: etcd-Snapshots sichern nicht die PostgreSQL-Nutzdaten."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [etcd disaster recovery](https://etcd.io/docs/v3.6/op-guide/recovery/)."
+        },
+        {
+          "type": "heading",
+          "text": "Vorhersage prüfen: Welche Hypothese würde eine Beobachtung widerlegen?"
+        },
+        {
+          "type": "text",
+          "text": "Wenn neue Pods bereits eine Node-Zuweisung haben, erklärt ein alleiniger Scheduler-Stillstand ihren ImagePull-Fehler nicht. Wenn Nutzer weiterhin Teamboard bedienen, widerlegt das einen vollständigen Ausfall dieser Zugriffskette, aber nicht einen Control-Plane-Ausfall. Wenn ein Node nur unerreichbar ist, muss vor einem erzwungenen zweiten Datenbank-Primärprozess geklärt sein, ob die erste Instanz noch schreiben kann. Fencing und anwendungsspezifische Recovery verhindern konkurrierende Schreibautoritäten."
+        },
+        {
+          "type": "task",
+          "id": "internals-transfer",
+          "title": "Transfer · Verhalten vorhersagen und begründen",
+          "prompt": "Wähle für jedes Szenario die Vorhersage mit der passenden Ursache. Formuliere zuerst selbst, welche Beobachtung deine Diagnose widerlegen würde.",
+          "hint": "Trenne API-Annahme, beobachteten Zustand und lokale Ausführung. Nutze die Internals-Abschnitte zur Begründung.",
+          "solution": "Zeitleisten hängen von mehreren Komponenten und Einstellungen ab. Partition und Ausschalten sind unterschiedliche Fehler. Restore ist ein eigener Wiederherstellungsweg und benötigt eine Datenverlust- sowie Konsistenzbetrachtung.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Alle Szenarien müssen richtig zugeordnet sein. Dieser Nachweis bewertet die Ursachen-Zuordnung; deine freie Begründung vergleichst du selbst.",
+            "options": [
+              "Lokaler Workload kann weiterlaufen; vor konkurrierendem Ersatz Datenzugriff und Fencing prüfen.",
+              "Das ist eine Tolerationsdauer, keine zugesicherte gesamte Recovery-Zeit.",
+              "Neuen logischen Cluster und Watch-/Cache-Recovery planen; spätere Änderungen können fehlen.",
+              "Die API bestätigt automatisch, dass alle Anwendungen bereit sind."
+            ],
+            "items": [
+              {
+                "prompt": "Node ist aus API-Sicht unerreichbar; die VM ist aber eingeschaltet und vom Storage erreichbar.",
+                "answer": "Lokaler Workload kann weiterlaufen; vor konkurrierendem Ersatz Datenzugriff und Fencing prüfen."
+              },
+              {
+                "prompt": "Ein Pod toleriert unreachable 300 Sekunden.",
+                "answer": "Das ist eine Tolerationsdauer, keine zugesicherte gesamte Recovery-Zeit."
+              },
+              {
+                "prompt": "Nach permanentem Quorumverlust wird ein älterer etcd-Snapshot wiederhergestellt.",
+                "answer": "Neuen logischen Cluster und Watch-/Cache-Recovery planen; spätere Änderungen können fehlen."
+              }
+            ]
           }
         }
       ]

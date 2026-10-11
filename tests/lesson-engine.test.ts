@@ -130,8 +130,14 @@ describe("theory and practice assessments", () => {
       task.verification.items.map((i, n) => [n, i.answer]),
     );
     expect(checkPractice(task, answers, []).every((c) => c.passed)).toBe(true);
-    expect(practiceTasks(lesson)).toHaveLength(1);
-    expect(practiceMastered(lesson, ["cluster-basics/practice"])).toBe(true);
+    expect(practiceTasks(lesson)).toHaveLength(2);
+    expect(practiceMastered(lesson, ["cluster-basics/practice"])).toBe(false);
+    expect(
+      practiceMastered(lesson, [
+        "cluster-basics/practice",
+        "cluster-basics/internals-transfer",
+      ]),
+    ).toBe(true);
     expect(
       practiceMastered(
         lessons.find((l) => l.id === "linux")!,

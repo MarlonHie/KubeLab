@@ -7,7 +7,8 @@
   "goals": [
     "Deployment-, ReplicaSet- und Pod-Ebene trennen",
     "Idempotente Regelkreise erklären",
-    "Null Replikate von einem Ausfall unterscheiden"
+    "Null Replikate von einem Ausfall unterscheiden",
+    "Informer-Sicht, Workqueue-Retries und idempotente Reconciliation bei Konflikten erklären"
   ],
   "sources": [
     {
@@ -21,6 +22,14 @@
     {
       "title": "ReplicaSets",
       "url": "https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/"
+    },
+    {
+      "title": "client-go cache",
+      "url": "https://pkg.go.dev/k8s.io/client-go/tools/cache"
+    },
+    {
+      "title": "sample-controller",
+      "url": "https://github.com/kubernetes/sample-controller/blob/master/controller.go"
     }
   ],
   "$schema": "../../packages/lesson-engine/lesson.schema.json",
@@ -156,6 +165,137 @@
           "solution": "Der erste Schreibvorgang könnte erfolgreich gewesen sein, obwohl seine Antwort verloren ging. Eine erneute Beobachtung und eindeutige Objektidentitäten verhindern unnötige oder doppelte Arbeit.",
           "verification": {
             "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Optionaler Vertiefungspfad",
+          "text": "Die Grundlagen bleiben dein Einstieg. Hier folgen Implementierungsdetails, Diagnose und Transfer. Die vorhandenen einfachen Experimente dienen als Concept Simulator; zusätzliche Modelle bilden ausdrücklich ausgewählte interne Schritte ab."
+        },
+        {
+          "type": "heading",
+          "text": "List/Watch → Cache → Schlüssel → Reconcile"
+        },
+        {
+          "type": "text",
+          "text": "Ein Shared Informer führt eine lokale Sicht auf API-Objekte und benachrichtigt Handler über Änderungen. Ein typischer Handler reiht den Schlüssel namespace/name in eine Workqueue ein. Der Worker liest beim Bearbeiten den dann beobachteten Zustand. Das Ereignis ist ein Anlass zur Prüfung, kein Befehl „erzeuge genau einen Pod“. Mehrere Benachrichtigungen können zu einem Schlüssel zusammenfallen; die Logik muss deshalb vom aktuellen Ziel und Istzustand ausgehen."
+        },
+        {
+          "type": "text",
+          "text": "Vor dem Start der Worker wartet der Sample Controller auf initial synchronisierte Caches. Diese Schranke bedeutet nicht, dass ein Cache danach jederzeit auf dem letzten Serverstand ist. Ein Resync kann bekannte Objekte erneut zur Verarbeitung anbieten, ohne einen neuen API-List für jedes Objekt zu erzwingen. Cache-Objekte werden gemeinsam genutzt: vor einer lokalen Änderung kopieren, statt die gelieferte Instanz zu mutieren. Sonst verändert ein Worker die Beobachtungsgrundlage anderer Nutzer ohne API-Write."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [client-go cache](https://pkg.go.dev/k8s.io/client-go/tools/cache)."
+        },
+        {
+          "type": "heading",
+          "text": "Retry bedeutet erneut abgleichen"
+        },
+        {
+          "type": "table",
+          "caption": "Ein Worker-Durchlauf",
+          "headers": [
+            "Schritt",
+            "Beabsichtigte Wirkung",
+            "Fehlerfall"
+          ],
+          "rows": [
+            [
+              "Get / Done",
+              "Ein Workqueue-Element bearbeiten und Bearbeitung abschließen",
+              "Done auch bei Fehler ausführen"
+            ],
+            [
+              "Reconcile",
+              "Gewünschte Kinder und beobachteten Bestand vergleichen",
+              "Cache kann nach erfolgreichem Create noch zurückliegen"
+            ],
+            [
+              "Forget",
+              "Retry-Historie nach Erfolg zurücksetzen",
+              "Nicht mit Done verwechseln"
+            ],
+            [
+              "AddRateLimited",
+              "Nach temporärem Fehler verzögert erneut prüfen",
+              "Kein ungebremstes Busy Loop"
+            ]
+          ]
+        },
+        {
+          "type": "text",
+          "text": "Angenommen, das Anlegen eines benannten Kindes endet im Client mit Timeout. Der Server kann das Objekt trotzdem gespeichert haben. Beim nächsten Versuch sind erneutes Lesen, AlreadyExists-Behandlung und eine Prüfung der OwnerReference nötig. Nach einem Update-Konflikt muss die Änderung auf den neu gelesenen Stand übertragen werden. Idempotenz bedeutet hier: wiederholter Abgleich konvergiert zum selben Ziel, statt bei jedem Aufruf ein weiteres externes Konto oder eine weitere Datenbankmigration auszulösen."
+        },
+        {
+          "type": "code",
+          "language": "text",
+          "execution": "output",
+          "code": "Waiting for informer caches to sync\nSuccessfully synced\nError syncing; requeuing for later retry",
+          "caption": "Originale Log-Nachrichtentexte aus dem offiziellen sample-controller (controller.go). Ausschnitte aus dem Quellcode, kein aufgezeichneter Lauf und kein zugesicherter Ablauf. Zeitstempel und Objektfelder bewusst nicht erfunden."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [sample-controller source](https://github.com/kubernetes/sample-controller/blob/master/controller.go)."
+        },
+        {
+          "type": "heading",
+          "text": "Reconcile ist level-based, nicht exakt einmal"
+        },
+        {
+          "type": "code",
+          "language": "text",
+          "execution": "example",
+          "code": "beobachte Eigentümer und Kinder\nberechne Abweichung vom aktuellen Ziel\nwenn Kind fehlt: kontrolliert erstellen, AlreadyExists abgleichen\nwenn Update kollidiert: neu lesen und Änderung neu berechnen\nwenn temporärer Fehler: mit Backoff erneut einreihen\nwenn abgeglichen: Retry-Historie vergessen",
+          "caption": "Didaktischer Pseudocode. Kein Kubernetes-API-Vertrag und keine ausführbare Controller-Implementierung."
+        },
+        {
+          "type": "text",
+          "text": "Status-Updates sind ebenfalls API-Schreibvorgänge und können Konflikte verursachen. Ein erfolgreich abgeschlossener Sync sagt nur, dass dieser Controller seinen momentanen Abgleich ohne Fehler beendet hat. Für Teamboards Deployment können die erzeugten Pods trotzdem erst später schedulbar oder bereit werden. Ein hängen gebliebener externer Dienst lässt sich nicht durch möglichst häufige Status-Updates heilen."
+        },
+        {
+          "type": "text",
+          "text": "Quelle: [Controller pattern](https://kubernetes.io/docs/concepts/architecture/controller/)."
+        },
+        {
+          "type": "task",
+          "id": "internals-transfer",
+          "title": "Transfer · Verhalten vorhersagen und begründen",
+          "prompt": "Wähle für jedes Szenario die Vorhersage mit der passenden Ursache. Formuliere zuerst selbst, welche Beobachtung deine Diagnose widerlegen würde.",
+          "hint": "Trenne API-Annahme, beobachteten Zustand und lokale Ausführung. Nutze die Internals-Abschnitte zur Begründung.",
+          "solution": "Reconciliation muss verlorene oder zusammengefasste Benachrichtigungen, veraltete Beobachtungen und Wiederholungen vertragen. Ein Sync ist keine genau-einmal-Transaktion über Kubernetes und externe Systeme.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Alle Szenarien müssen richtig zugeordnet sein. Dieser Nachweis bewertet die Ursachen-Zuordnung; deine freie Begründung vergleichst du selbst.",
+            "options": [
+              "Existenz und Eigentümer erneut abgleichen; blindes Wiederholen kann Nebenwirkungen duplizieren.",
+              "Den aktuellen Zielzustand abgleichen, statt die Zahl der Ereignisse nachzubauen.",
+              "Gemeinsame Sicht wird ohne API-Write beschädigt; vor Änderungen kopieren.",
+              "Die API bestätigt automatisch, dass alle Anwendungen bereit sind."
+            ],
+            "items": [
+              {
+                "prompt": "Ein Create endet mit Timeout; der Cache zeigt das Kind noch nicht.",
+                "answer": "Existenz und Eigentümer erneut abgleichen; blindes Wiederholen kann Nebenwirkungen duplizieren."
+              },
+              {
+                "prompt": "Zwei Update-Ereignisse werden zu einem Queue-Schlüssel zusammengefasst.",
+                "answer": "Den aktuellen Zielzustand abgleichen, statt die Zahl der Ereignisse nachzubauen."
+              },
+              {
+                "prompt": "Ein Worker ändert ein Objekt direkt aus dem Shared-Informer-Cache.",
+                "answer": "Gemeinsame Sicht wird ohne API-Write beschädigt; vor Änderungen kopieren."
+              }
+            ]
           }
         }
       ]

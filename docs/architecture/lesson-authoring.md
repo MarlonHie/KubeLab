@@ -99,3 +99,11 @@ Der IndexedDB-Schlüssel bleibt `kubelab-progress`. Schema-Version 3 enthält:
 Version 2 migriert alle bisherigen `completed`-IDs zu Theorieabschlüssen. Version 1 behält die bestehende Ausnahme für den früheren einzelnen Control-Plane-Wissenscheck bei. Alte Stände erhalten **keine** Praxisabschlüsse, da dafür keine überprüften Nachweise vorliegen. Der geladene Altstand wird serialisiert als Version 3 zurückgeschrieben. Export und Import unterstützen beide Lernspuren; unbekannte oder offene Reflexionsaufgaben sind keine gültigen Praxisabschlüsse. Das separate gespeicherte Lab bleibt unverändert.
 
 Die Originalinhalte von 0.2 liegen ausschließlich als Migrations-Testfixtures unter `tests/fixtures/`. Tests vergleichen sämtliche Textwerte und Quizfragen der neun Architekturlektionen sowie die Inhaltszeilen der vier ehemaligen MDX-Einführungen. Aktiver Inhalt wird ausschließlich in `content/lessons/` gepflegt.
+
+## Optionale Internals und Zustands-Challenges (0.2.2)
+
+`sections[].collapsible: true` rendert einen nativen, zunächst geschlossenen Details-Abschnitt. Der Inhaltsverzeichnis-Link öffnet ihn. Bestehende Pflichtfelder und schemaVersion 1 bleiben gültig. Für Vertiefungen vorhandene Abschnitte erhalten und neue Nachweis-IDs verwenden.
+
+`verification: { kind: "state-machine", experimentId: "internals-model", challengeId: "raft-partition-v1" }` verweist auf einen früheren, kompatiblen Modellblock. Alternativ gibt es `scheduler-pipeline-v1`. Die Zuordnung ist in `challenges.ts` fest definiert; JSON enthält keinen ausführbaren Prüfer. Jede Aktion wird aus einem definierten Startzustand abgespielt. Prüfschritte verlangen die passende Aktion sowie Vor-/Nachbedingungen. Falsche Reihenfolge, Wiederholungen und Zusatzaktionen bestehen den geführten Prüfpfad nicht; Reset beginnt einen neuen Versuch. Dies ist eine Lernprüfung im Client, kein manipulationssicheres Zertifikat.
+
+Modellzustand und Prüfung verwenden dieselbe Aktionshistorie, einschließlich wiederholter Aktionen. Zwischenstände werden nicht als abgeschlossene Praxis gespeichert. Grundlagenaufgaben und Quizzes bleiben getrennt. Neue Transfer-Zuordnungen prüfen begründete Vorhersagen, aber bewerten keine freie Prosa. Die redaktionelle Lernziel-/Aufgaben-/Quiz-Zuordnung steht in `docs/content/module-03-gap-analysis.md`.

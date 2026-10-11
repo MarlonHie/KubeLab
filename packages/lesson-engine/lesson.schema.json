@@ -242,7 +242,9 @@
                         "scheduler",
                         "runtime",
                         "flow",
-                        "failure"
+                        "failure",
+                        "raft-internals",
+                        "scheduler-internals"
                       ]
                     }
                   },
@@ -366,6 +368,26 @@
                             }
                           },
                           "required": ["kind", "experimentId", "requirements"]
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "const": "state-machine"
+                            },
+                            "experimentId": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9-]*$"
+                            },
+                            "challengeId": {
+                              "enum": [
+                                "raft-partition-v1",
+                                "scheduler-pipeline-v1"
+                              ]
+                            }
+                          },
+                          "required": ["kind", "experimentId", "challengeId"]
                         }
                       ]
                     }
@@ -443,6 +465,9 @@
               ]
             },
             "minItems": 1
+          },
+          "collapsible": {
+            "type": "boolean"
           }
         },
         "required": ["id", "title", "navLabel", "blocks"]
