@@ -1,0 +1,224 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "container-images",
+  "moduleId": "02",
+  "title": "OCI Images: Index, Manifest und Layer",
+  "description": "Inhaltsadressierung, Plattformauswahl und beschreibbaren Laufzeitzustand trennen.",
+  "category": "CONTAINER FUNDAMENTALS",
+  "level": "Deep Dive",
+  "duration": 30,
+  "goals": [
+    "Inhaltsadressierung, Plattformauswahl und beschreibbaren Laufzeitzustand trennen.",
+    "Befunde vor einer Korrektur erheben und alternative Ursachen ausschließen"
+  ],
+  "sections": [
+    {
+      "id": "concept",
+      "title": "Technischer Zusammenhang",
+      "navLabel": "Grundlagen",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Ein Image ist ein Graph aus Inhalten"
+        },
+        {
+          "type": "text",
+          "text": "Ein OCI-Image-Manifest verweist auf Konfiguration und geordnete Dateisystem-Layer. Ein optionaler Image-Index verweist auf passende Manifeste, etwa für mehrere Plattformen. Deskriptoren tragen unter anderem Medientyp, Digest und Größe. Ein Registry-Tag ist ein benannter Verweis und kann sich ändern; ein Digest identifiziert bestimmten Inhalt. Welche Plattformvariante ausgeführt werden kann, muss trotzdem zum Zielsystem passen."
+        },
+        {
+          "type": "heading",
+          "text": "Layer und Änderungen"
+        },
+        {
+          "type": "text",
+          "text": "Layer beschreiben Dateisystemänderungen. Löschungen können über Whiteouts dargestellt werden; eine in einem späteren Layer gelöschte Datei ist dadurch nicht aus allen älteren Blobs verschwunden. Das ist bei versehentlich eingebauten Geheimnissen wichtig. Ein Runtime-Snapshotter stellt aus dem Image eine nutzbare Dateisystemsicht und den beschreibbaren Zustand bereit. Diese veränderliche Schicht ist nicht automatisch ein dauerhaftes Datenvolume."
+        },
+        {
+          "type": "heading",
+          "text": "Konfiguration und Ausführung"
+        },
+        {
+          "type": "text",
+          "text": "Image-Konfiguration kann unter anderem Prozessargumente, Umgebung und Arbeitsverzeichnis beschreiben. Der Runtime-Aufrufer ergänzt oder überschreibt Konfiguration nach seinen Regeln. Ein Image-Pull startet keinen Prozess. Ein vorhandener Blob beweist weder die Eignung für die Node-Architektur noch erfolgreiche Netzwerk- oder Volume-Vorbereitung."
+        },
+        {
+          "type": "table",
+          "caption": "Beobachtung und technische Bedeutung",
+          "headers": [
+            "Begriff / Befund",
+            "Bedeutung",
+            "Grenze der Aussage"
+          ],
+          "rows": [
+            [
+              "Tag",
+              "Benannter Registry-Verweis",
+              "Nicht unveränderlich"
+            ],
+            [
+              "Digest",
+              "Identität von Inhalt",
+              "Kein automatischer Vertrauensnachweis für den Herausgeber"
+            ],
+            [
+              "Index",
+              "Verweise auf Plattformmanifeste",
+              "Keine automatische Emulation"
+            ],
+            [
+              "Writable Snapshot",
+              "Veränderlicher Laufzeitzustand",
+              "Kein Ersatz für persistente Volumes"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guided-practice",
+      "title": "Geführte Praxis und externe Beobachtung",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "code",
+          "code": "sudo crictl images\nsudo ctr -n k8s.io images ls\nuname -m",
+          "caption": "Lesende Diagnose bei konfigurierten Runtime-Endpunkten. containerd-Namespace k8s.io ist kein Kubernetes-Namespace. Werkzeugdarstellungen sind keine OCI-Spezifikation.",
+          "language": "bash",
+          "execution": "external"
+        },
+        {
+          "type": "text",
+          "text": "Notiere im eigenen Lab Beobachtung, betroffenen Kontext und Zeitpunkt. Die externen Befehle sind keine Voraussetzung für einen Browsernachweis; dieser bewertet ausschließlich die folgende Modellaufgabe."
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "tier": "practice",
+          "title": "Geführte Zuordnung",
+          "prompt": "Ordne die Beobachtungen ihrer technischen Erklärung zu. Vergleiche anschließend deine Begründung.",
+          "hint": "Trenne Mechanismus, beobachteten Zustand und Zuständigkeit.",
+          "solution": "Ein Tag wurde auf neuen Inhalt verschoben Gleicher Name garantiert keine gleichen Bytes. Layer später gelöscht Alte Layer können die ursprünglichen Daten weiterhin enthalten. Index ohne passende Plattform Ein geeigneter Build oder Node ist erforderlich.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Jede Beobachtung braucht die passende Ursache.",
+            "options": [
+              "Gleicher Name garantiert keine gleichen Bytes.",
+              "Alte Layer können die ursprünglichen Daten weiterhin enthalten.",
+              "Ein geeigneter Build oder Node ist erforderlich."
+            ],
+            "items": [
+              {
+                "prompt": "Ein Tag wurde auf neuen Inhalt verschoben",
+                "answer": "Gleicher Name garantiert keine gleichen Bytes."
+              },
+              {
+                "prompt": "Layer später gelöscht",
+                "answer": "Alte Layer können die ursprünglichen Daten weiterhin enthalten."
+              },
+              {
+                "prompt": "Index ohne passende Plattform",
+                "answer": "Ein geeigneter Build oder Node ist erforderlich."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Reproduzierbarkeit hat mehrere Voraussetzungen"
+        },
+        {
+          "type": "text",
+          "text": "Ein Digest verhindert, dass derselbe Inhaltsverweis stillschweigend auf andere Bytes zeigt. Reproduzierbarer Betrieb benötigt zusätzlich kontrollierte Konfiguration, Plattformauswahl, externe Abhängigkeiten und gegebenenfalls Signaturprüfung. Manifest-Digest und der Digest eines einzelnen Layers bezeichnen verschiedene Objekte. Vergleiche daher den richtigen Verweis; ein beliebiger sha256-Wert ist kein austauschbares Image-Kennzeichen."
+        },
+        {
+          "type": "task",
+          "id": "diagnosis",
+          "tier": "deep-dive",
+          "title": "Eigenständige Fehleranalyse",
+          "prompt": "Erhebe Belege in selbst gewählter Reihenfolge. Leite Ursache und passende Korrektur ab. Ein unabhängiger Nachweis entsteht im Challenge-Modus ohne aufgedeckte Hilfe.",
+          "hint": "Beziehe alle Modellbefunde ein und schließe Erklärungen aus, die einer Beobachtung widersprechen.",
+          "solution": "Die Fallbegründung erklärt den Zusammenhang zwischen Befunden und Ursache.",
+          "verification": {
+            "kind": "diagnosis",
+            "caseId": "container-images"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Ein Manifest verweist auf …",
+              "answers": [
+                "Konfiguration und Layer",
+                "laufende Host-PIDs",
+                "etcd-Leases"
+              ],
+              "correct": 0,
+              "explanation": "Konfiguration und Layer. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q2",
+              "prompt": "Ein Index hilft bei …",
+              "answers": [
+                "Reaping",
+                "Plattformauswahl",
+                "CPU-Throttling"
+              ],
+              "correct": 1,
+              "explanation": "Plattformauswahl. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q3",
+              "prompt": "Pull-Erfolg bedeutet …",
+              "answers": [
+                "App ist ready",
+                "Volume ist gemountet",
+                "Image-Inhalt ist verfügbar, Start folgt separat"
+              ],
+              "correct": 2,
+              "explanation": "Image-Inhalt ist verfügbar, Start folgt separat. Die technischen Abschnitte erklären die Abgrenzung."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "OCI manifest 1.1.1",
+      "url": "https://github.com/opencontainers/image-spec/blob/v1.1.1/manifest.md"
+    },
+    {
+      "title": "OCI index 1.1.1",
+      "url": "https://github.com/opencontainers/image-spec/blob/v1.1.1/image-index.md"
+    },
+    {
+      "title": "OCI layers 1.1.1",
+      "url": "https://github.com/opencontainers/image-spec/blob/v1.1.1/layer.md"
+    },
+    {
+      "title": "OCI config 1.1.1",
+      "url": "https://github.com/opencontainers/image-spec/blob/v1.1.1/config.md"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

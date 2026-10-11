@@ -1,0 +1,235 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "linux-processes",
+  "moduleId": "01",
+  "title": "Prozesse, Signale und PID 1",
+  "description": "Prozesszustände, fork/exec, Signale und Reaping bei Teamboards Diensten erklären.",
+  "category": "LINUX FUNDAMENTALS",
+  "level": "Deep Dive",
+  "duration": 30,
+  "goals": [
+    "Prozesszustände, fork/exec, Signale und Reaping bei Teamboards Diensten erklären.",
+    "Befunde vor einer Korrektur erheben und alternative Ursachen ausschließen"
+  ],
+  "sections": [
+    {
+      "id": "concept",
+      "title": "Technischer Zusammenhang",
+      "navLabel": "Grundlagen",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Von einem Programm zum Prozess"
+        },
+        {
+          "type": "text",
+          "text": "Eine ausführbare Datei ist noch kein Prozess. Ein Prozess besitzt unter anderem Adressraum, offene Dateideskriptoren und Kernel-Verwaltungsdaten. fork erzeugt einen Kindprozess; exec ersetzt dessen Programmabbild, ohne daraus allein eine neue PID zu machen. Threads teilen wesentliche Ressourcen eines Prozesses, können aber separat vom Scheduler ausgeführt werden. Teamboards Server kann deshalb mehrere Threads besitzen, obwohl sein Dienst nur eine Hauptprozess-ID meldet."
+        },
+        {
+          "type": "heading",
+          "text": "Signale sind keine Funktionsaufrufe"
+        },
+        {
+          "type": "text",
+          "text": "SIGTERM bittet einen Prozess um Beendigung und kann durch einen Handler verarbeitet werden. SIGKILL kann nicht abgefangen oder ignoriert werden; damit fehlen anwendungseigene Aufräumschritte. Selbst SIGKILL ist keine Zusage, dass ein Prozess in jedem Kernel-Wartezustand sofort verschwindet. Signale adressieren Prozess- oder Prozessgruppen-Kontexte; ein Shell-Wrapper leitet Signale nicht automatisch so weiter, wie die Anwendung es erwartet."
+        },
+        {
+          "type": "heading",
+          "text": "Beendigung ist nicht Reaping"
+        },
+        {
+          "type": "text",
+          "text": "Wenn ein Kind endet, können Exit-Status und Verwaltungsdaten bis zum wait-Aufruf des Elternprozesses erhalten bleiben. Dieser Zombie führt keinen Anwendungscode mehr aus. Ein Dienst, der laufend Kinder erzeugt und nicht abholt, kann dennoch Prozessverwaltungskapazität binden. Prüfe PID, PPID und Zustand zusammen, bevor du wiederholt Signale sendest."
+        },
+        {
+          "type": "table",
+          "caption": "Beobachtung und technische Bedeutung",
+          "headers": [
+            "Begriff / Befund",
+            "Bedeutung",
+            "Grenze der Aussage"
+          ],
+          "rows": [
+            [
+              "R / S",
+              "Lauffähig bzw. unterbrechbar schlafend",
+              "S ist nicht automatisch ein Fehler"
+            ],
+            [
+              "D",
+              "Nicht unterbrechbares Warten, oft im I/O-Pfad",
+              "Nicht pauschal mit hoher CPU gleichsetzen"
+            ],
+            [
+              "Z",
+              "Beendet, noch nicht abgeholt",
+              "Kein ausführender Zombie-Code"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guided-practice",
+      "title": "Geführte Praxis und externe Beobachtung",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "code",
+          "code": "ps -eo pid,ppid,stat,comm\ncat /proc/self/status\ncat /proc/self/limits",
+          "caption": "Lesende Beobachtungen in einer Linux-VM. Die Werte hängen vom laufenden System ab; es gibt keine vorgegebene Ausgabe.",
+          "language": "bash",
+          "execution": "external"
+        },
+        {
+          "type": "text",
+          "text": "Notiere im eigenen Lab Beobachtung, betroffenen Kontext und Zeitpunkt. Die externen Befehle sind keine Voraussetzung für einen Browsernachweis; dieser bewertet ausschließlich die folgende Modellaufgabe."
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "tier": "practice",
+          "title": "Geführte Zuordnung",
+          "prompt": "Ordne die Beobachtungen ihrer technischen Erklärung zu. Vergleiche anschließend deine Begründung.",
+          "hint": "Trenne Mechanismus, beobachteten Zustand und Zuständigkeit.",
+          "solution": "exec des Servers Programmabbild wird ersetzt; exec allein erzeugt keine neue PID. Zustand Z nach Exit Elternprozess muss den Exit-Status abholen. SIGTERM vor SIGKILL Geordnete Beendigung mit anwendungseigenem Aufräumen ermöglichen.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Jede Beobachtung braucht die passende Ursache.",
+            "options": [
+              "Programmabbild wird ersetzt; exec allein erzeugt keine neue PID.",
+              "Elternprozess muss den Exit-Status abholen.",
+              "Geordnete Beendigung mit anwendungseigenem Aufräumen ermöglichen."
+            ],
+            "items": [
+              {
+                "prompt": "exec des Servers",
+                "answer": "Programmabbild wird ersetzt; exec allein erzeugt keine neue PID."
+              },
+              {
+                "prompt": "Zustand Z nach Exit",
+                "answer": "Elternprozess muss den Exit-Status abholen."
+              },
+              {
+                "prompt": "SIGTERM vor SIGKILL",
+                "answer": "Geordnete Beendigung mit anwendungseigenem Aufräumen ermöglichen."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "PID 1 im Namespace"
+        },
+        {
+          "type": "text",
+          "text": "Der erste Prozess eines PID-Namespace übernimmt besondere Aufgaben als Init-Prozess. Verwaiste Prozesse können einem geeigneten Subreaper oder dem Init-Prozess zugeordnet werden; dieser muss Kinder abholen. Für Namespace-Init gelten außerdem besondere Signalregeln. Ein Container-Entrypoint sollte daher Signalbehandlung und Reaping bewusst organisieren. Verwende bei einem Shell-Entrypoint am Ende exec für den eigentlichen Server oder einen geeigneten Init-Wrapper, statt eine Kette unbeaufsichtigter Hintergrundprozesse aufzubauen."
+        },
+        {
+          "type": "task",
+          "id": "diagnosis",
+          "tier": "deep-dive",
+          "title": "Eigenständige Fehleranalyse",
+          "prompt": "Erhebe Belege in selbst gewählter Reihenfolge. Leite Ursache und passende Korrektur ab. Ein unabhängiger Nachweis entsteht im Challenge-Modus ohne aufgedeckte Hilfe.",
+          "hint": "Beziehe alle Modellbefunde ein und schließe Erklärungen aus, die einer Beobachtung widersprechen.",
+          "solution": "Die Fallbegründung erklärt den Zusammenhang zwischen Befunden und Ursache.",
+          "verification": {
+            "kind": "diagnosis",
+            "caseId": "linux-processes"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Was tut exec?",
+              "answers": [
+                "Es ersetzt das Programmabbild.",
+                "Es startet immer einen neuen Kernel.",
+                "Es ist identisch mit fork."
+              ],
+              "correct": 0,
+              "explanation": "Es ersetzt das Programmabbild.. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q2",
+              "prompt": "Ein Zombie verschwindet typischerweise durch …",
+              "answers": [
+                "mehr CPU",
+                "wait/Reaping des Elternprozesses",
+                "einen neuen Netzwerk-Namespace"
+              ],
+              "correct": 1,
+              "explanation": "wait/Reaping des Elternprozesses. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q3",
+              "prompt": "Warum ist PID 1 relevant?",
+              "answers": [
+                "Sie garantiert HTTP-Readiness.",
+                "Sie reserviert einen CPU-Kern.",
+                "Init-Aufgaben und Signalverhalten müssen beachtet werden."
+              ],
+              "correct": 2,
+              "explanation": "Init-Aufgaben und Signalverhalten müssen beachtet werden.. Die technischen Abschnitte erklären die Abgrenzung."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "execve",
+      "url": "https://man7.org/linux/man-pages/man2/execve.2.html"
+    },
+    {
+      "title": "wait",
+      "url": "https://man7.org/linux/man-pages/man2/waitpid.2.html"
+    },
+    {
+      "title": "Signals",
+      "url": "https://man7.org/linux/man-pages/man7/signal.7.html"
+    },
+    {
+      "title": "PID namespaces",
+      "url": "https://man7.org/linux/man-pages/man7/pid_namespaces.7.html"
+    },
+    {
+      "title": "execve · Handbuch-Quelltext",
+      "url": "https://github.com/mkerrisk/man-pages/blob/master/man2/execve.2"
+    },
+    {
+      "title": "wait · Handbuch-Quelltext",
+      "url": "https://github.com/mkerrisk/man-pages/blob/master/man2/waitpid.2"
+    },
+    {
+      "title": "Signals · Handbuch-Quelltext",
+      "url": "https://github.com/mkerrisk/man-pages/blob/master/man7/signal.7"
+    },
+    {
+      "title": "PID namespaces · Handbuch-Quelltext",
+      "url": "https://github.com/mkerrisk/man-pages/blob/master/man7/pid_namespaces.7"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

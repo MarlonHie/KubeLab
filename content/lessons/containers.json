@@ -8,7 +8,9 @@
   "schemaVersion": 1,
   "moduleId": "02",
   "level": "Fundamentals",
-  "goals": [],
+  "goals": [
+    "Die Begriffe des Einstiegs voneinander abgrenzen und den anschließenden Fachlektionen zuordnen."
+  ],
   "sections": [
     {
       "id": "section-1",
@@ -74,6 +76,45 @@
         {
           "type": "text",
           "text": "[Container Runtimes in Kubernetes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/)"
+        }
+      ]
+    },
+    {
+      "id": "guided-practice",
+      "title": "Einstieg praktisch prüfen",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "task",
+          "id": "practice",
+          "tier": "practice",
+          "title": "Begriffe zuordnen",
+          "prompt": "Ordne die Beobachtungen ihrer technischen Erklärung zu. Vergleiche anschließend deine Begründung.",
+          "hint": "Trenne Mechanismus, beobachteten Zustand und Zuständigkeit.",
+          "solution": "Image- und Metadatenverwaltung containerd OCI-Prozessstart runc Vertrag zwischen kubelet und Runtime CRI",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Jede Beobachtung braucht die passende Ursache.",
+            "options": [
+              "containerd",
+              "runc",
+              "CRI"
+            ],
+            "items": [
+              {
+                "prompt": "Image- und Metadatenverwaltung",
+                "answer": "containerd"
+              },
+              {
+                "prompt": "OCI-Prozessstart",
+                "answer": "runc"
+              },
+              {
+                "prompt": "Vertrag zwischen kubelet und Runtime",
+                "answer": "CRI"
+              }
+            ]
+          }
         }
       ]
     },

@@ -25,7 +25,7 @@ export function practiceTasks(lesson: Lesson): TaskBlock[] {
 export const practiceKey = (lessonId: string, taskId: string) =>
   `${lessonId}/${taskId}`;
 export function practiceMastered(lesson: Lesson, completed: string[]) {
-  const tasks = practiceTasks(lesson);
+  const tasks = basicPracticeTasks(lesson);
   return (
     tasks.length > 0 &&
     tasks.every((t) => completed.includes(practiceKey(lesson.id, t.id)))
@@ -33,3 +33,26 @@ export function practiceMastered(lesson: Lesson, completed: string[]) {
 }
 export { curriculum };
 export type * from "./types";
+
+export const basicPracticeTasks = (lesson: Lesson) =>
+  practiceTasks(lesson).filter((t) => !t.tier || t.tier === "practice");
+export const deepDiveTasks = (lesson: Lesson) =>
+  practiceTasks(lesson).filter((t) => t.tier === "deep-dive");
+export function deepDiveMastered(
+  lesson: Lesson,
+  progress: {
+    theoryCompleted: string[];
+    practiceCompleted: string[];
+    independentCompleted: string[];
+  },
+) {
+  const tasks = deepDiveTasks(lesson);
+  return (
+    progress.theoryCompleted.includes(lesson.id) &&
+    practiceMastered(lesson, progress.practiceCompleted) &&
+    tasks.length > 0 &&
+    tasks.every((t) =>
+      progress.independentCompleted.includes(practiceKey(lesson.id, t.id)),
+    )
+  );
+}

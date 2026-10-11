@@ -28,7 +28,7 @@ Jede Lektion enthält Lernziele, Einführung, technische Vertiefung, ein interak
 | D · Enterprise Operations | 14–16  | Security, High Availability, Troubleshooting                       |
 | E · Content Quality       | alle   | Fachreview, Didaktik, Verlinkung, Tests und Kollegen-Beta          |
 
-Modul 03 ist das ausgearbeitete Referenzmodul. Für 01, 02 und 07 bestehen Einführungen; die übrigen Bereiche sind geplant. Es gibt insgesamt 13 verfügbare Lektionen. Der bestehende externe kubeadm-Leitfaden ist kein fertig geprüfter Bootstrap-Lernpfad.
+Modul 03 ist das ausgearbeitete Referenzmodul. 01 umfasst sechs Linux-Lektionen, 02 fünf Container-Lektionen; 07 bleibt eine Einführung. Die übrigen Bereiche sind geplant. Insgesamt gibt es 22 Lektionen. Der bestehende externe kubeadm-Leitfaden ist kein fertig geprüfter Bootstrap-Lernpfad.
 
 ## Durchgehendes Praxisprojekt
 
@@ -36,7 +36,7 @@ Modul 03 ist das ausgearbeitete Referenzmodul. Für 01, 02 und 07 bestehen Einf�
 
 ## Content-System 0.2.1
 
-Alle vorhandenen Lektionen verwenden das deklarative Blockformat. Theorie und überprüfte Modellaufgaben erhalten getrennte Fortschritte, vorhandene Stände werden migriert. Die Einführungen wurden formal migriert, noch nicht inhaltlich zu vollständigen Grundlagenmodulen ausgebaut. Siehe [Autorenhandbuch](lesson-authoring.md).
+Alle vorhandenen Lektionen verwenden das deklarative Blockformat. Theorie und überprüfte Modellaufgaben erhalten getrennte Fortschritte, vorhandene Stände werden migriert. Die Einstiegslektionen bleiben erhalten und werden in 01/02 durch neun Fachlektionen ergänzt. Drei Abschlussstufen trennen Grundlagen, geführte Praxis und eigenständige Vertiefung. Siehe [Autorenhandbuch](lesson-authoring.md).
 
 ## Weitere Werkzeuge
 

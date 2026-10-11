@@ -181,7 +181,7 @@ describe("Curriculum and backward-compatible learning progress", () => {
       lastLesson: "control-plane",
       theme: "dark",
     });
-    expect(p.version).toBe(3);
+    expect(p.version).toBe(4);
     expect(p.theoryCompleted).toEqual(["linux"]);
     expect(p.completedChallenges).toEqual(["selector"]);
     expect(p.checkpoints).toEqual([0]);

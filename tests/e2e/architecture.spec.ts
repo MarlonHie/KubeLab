@@ -75,7 +75,7 @@ test("three correct answers are required and reference completion survives reloa
       .check();
   await page.getByRole("button", { name: "Wissenscheck auswerten" }).click();
   await expect(
-    page.getByText("Theorie noch nicht abgeschlossen.", { exact: false }),
+    page.getByText("Grundlagen noch nicht abgeschlossen.", { exact: false }),
   ).toBeVisible();
   await page
     .locator(".architecture-question")
@@ -98,7 +98,7 @@ test("three correct answers are required and reference completion survives reloa
   );
   await page.reload();
   await expect(page.getByTestId("theory-status")).toHaveText(
-    "Theorie verstanden",
+    "Grundlagen abgeschlossen",
   );
 });
 test("invalid draft and applied cluster persist separately across route and reload", async ({

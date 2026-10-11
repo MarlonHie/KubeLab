@@ -52,6 +52,9 @@ import {
   lessons,
   phases,
   practiceTasks,
+  basicPracticeTasks,
+  deepDiveTasks,
+  deepDiveMastered,
   practiceMastered,
 } from "../../../packages/lesson-engine/src";
 import { schedule } from "../../../packages/cluster-model/src";
@@ -143,7 +146,7 @@ function App() {
             <ExternalLink size={13} />
           </a>
           <div className="sidebar-footer">
-            KubeLab <span>v0.2.2 · Local first</span>
+            KubeLab <span>v0.3.0 · Local first</span>
           </div>
         </div>
       </aside>
@@ -339,23 +342,30 @@ function Dashboard({ pct }: { pct: number }) {
                 {pct}
                 <small>%</small>
               </strong>
-              <span>Theorie</span>
+              <span>Grundlagen</span>
             </div>
           </div>
           <p>
             <strong>
               {p.theoryCompleted.length} von {lessons.length}
             </strong>{" "}
-            Theorieabschlüsse
+            Grundlagenabschlüsse
           </p>
           <div className="progress-stats">
-            <span>Praxis gemeistert</span>
+            <span>Praxis abgeschlossen</span>
             <strong>
               {
                 lessons.filter((l) => practiceMastered(l, p.practiceCompleted))
                   .length
               }{" "}
-              / {lessons.filter((l) => practiceTasks(l).length > 0).length}
+              / {lessons.filter((l) => basicPracticeTasks(l).length > 0).length}
+            </strong>
+          </div>
+          <div className="progress-stats">
+            <span>Deep Dive gemeistert</span>
+            <strong>
+              {lessons.filter((l) => deepDiveMastered(l, p)).length} /{" "}
+              {lessons.filter((l) => deepDiveTasks(l).length > 0).length}
             </strong>
           </div>
           <div className="progress-stats">
@@ -459,11 +469,9 @@ function Dashboard({ pct }: { pct: number }) {
                 <span className="path-step">{num}</span>
                 <strong>{name}</strong>
                 <span>
-                  {i === 2
-                    ? "9 Lektionen verfügbar"
-                    : i < 2
-                      ? "Einführung verfügbar"
-                      : "Geplant"}
+                  {lessons.some((l) => l.moduleId === num)
+                    ? `${lessons.filter((l) => l.moduleId === num).length} Lektionen verfügbar`
+                    : "Geplant"}
                 </span>
               </div>
             ))}
@@ -859,10 +867,15 @@ function Settings() {
                   : "Lernstand wird geladen …"}
           </p>
           <p>
-            {p.theoryCompleted.length} Theorieabschlüsse ·{" "}
+            {p.theoryCompleted.length} Grundlagenabschlüsse ·{" "}
             {p.practiceCompleted.length} Praxisaufgaben · {p.checkpoints.length}{" "}
             Lab-Schritte · {p.completedChallenges.length} Challenges
             abgeschlossen
+          </p>
+          <p>
+            {p.independentCompleted.length} eigenständige Vertiefungsnachweise ·{" "}
+            {lessons.filter((l) => deepDiveMastered(l, p)).length} Deep Dives
+            gemeistert
           </p>
           <p>
             Der Lernstand liegt in IndexedDB in diesem Browser. Exportiere ihn
@@ -911,7 +924,7 @@ function Settings() {
           </span>
           <h2>Neu anfangen</h2>
           <p>
-            Setze Theorieabschlüsse, Praxisnachweise, Lab-Schritte und
+            Setze Grundlagenabschlüsse, Praxisnachweise, Lab-Schritte und
             Challenges auf diesem Gerät zurück. Exportiere vorher einen
             Lernstand, den du behalten möchtest.
           </p>

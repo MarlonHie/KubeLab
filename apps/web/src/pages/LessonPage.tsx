@@ -5,6 +5,9 @@ import {
   lessons,
   curriculum,
   practiceTasks,
+  basicPracticeTasks,
+  deepDiveTasks,
+  deepDiveMastered,
   practiceMastered,
   type Lesson,
 } from "../../../../packages/lesson-engine/src";
@@ -23,7 +26,10 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
   const next = moduleLessons[index + 1];
   const module = curriculum.find((m) => m.id === lesson.moduleId)!;
   const theory = p.theoryCompleted.includes(lesson.id);
-  const tasks = practiceTasks(lesson);
+  const tasks = basicPracticeTasks(lesson);
+  const advanced = deepDiveTasks(lesson);
+  const [mode, setMode] = useState<"guided" | "challenge">("guided");
+  const [attempt, setAttempt] = useState(0);
   const mastered = practiceMastered(lesson, p.practiceCompleted);
   useEffect(() => {
     const progress = useProgress.getState();
@@ -46,16 +52,25 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
           <div className="lesson-progress-badges">
             <Badge color={theory ? "green" : "blue"}>
               <span data-testid="theory-status">
-                {theory ? "Theorie verstanden" : "Theorie offen"}
+                {theory ? "Grundlagen abgeschlossen" : "Grundlagen offen"}
               </span>
             </Badge>
             <Badge color={mastered ? "green" : "gray"}>
               <span data-testid="practice-status">
                 {mastered
-                  ? "Praxis gemeistert"
+                  ? "Praxis abgeschlossen"
                   : tasks.length
                     ? "Praxis offen"
                     : "Praxis nicht automatisch geprüft"}
+              </span>
+            </Badge>
+            <Badge color={deepDiveMastered(lesson, p) ? "green" : "gray"}>
+              <span data-testid="deep-dive-status">
+                {deepDiveMastered(lesson, p)
+                  ? "Deep Dive gemeistert"
+                  : advanced.length
+                    ? "Deep Dive offen · optional"
+                    : "Deep Dive noch nicht verfügbar"}
               </span>
             </Badge>
           </div>
@@ -79,10 +94,56 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
           }{" "}
           von {tasks.length} Praxisaufgaben geprüft
           {lesson.sections.some((s) => s.collapsible)
-            ? " · einschließlich optionaler Internals-Aufgaben"
+            ? " · optionale Vertiefungen zählen separat"
             : ""}
           .
         </p>
+      )}
+      {advanced.length > 0 && (
+        <div className="panel learning-mode">
+          <strong>Lernmodus</strong>
+          <div className="deep-actions">
+            {(["guided", "challenge"] as const).map((m) => (
+              <button
+                key={m}
+                className="button secondary"
+                aria-pressed={mode === m}
+                onClick={() => {
+                  setMode(m);
+                  setEvidence({});
+                  setAttempt((a) => a + 1);
+                }}
+              >
+                {m === "guided" ? "Geführt lernen" : "Eigenständige Challenge"}
+              </button>
+            ))}
+            <button
+              className="button secondary"
+              onClick={() => {
+                setEvidence({});
+                setAttempt((a) => a + 1);
+              }}
+            >
+              Neuen Versuch starten
+            </button>
+          </div>
+          <p>
+            {mode === "guided"
+              ? "Hinweise und Prüfpfade unterstützen das Lernen. Ergebnisse werden als Übung gespeichert."
+              : "Kein nächster Schritt und keine laufende Prüfliste. Diagnosefälle haben keine vorgeschriebene Reihenfolge. Aufgedeckte Hilfe macht diesen Versuch zur Übung."}{" "}
+            Ein Moduswechsel startet einen neuen Versuch; gespeicherte
+            Abschlüsse bleiben erhalten.
+          </p>
+          <p data-testid="deep-dive-count">
+            {
+              advanced.filter((t) =>
+                p.independentCompleted.includes(`${lesson.id}/${t.id}`),
+              ).length
+            }{" "}
+            von {advanced.length} eigenständigen Nachweisen. Deep Dive setzt
+            außerdem Grundlagen und grundlegende Praxis voraus.
+          </p>
+        </div>
       )}
       <div className="lesson-layout">
         <article className="prose panel architecture-lesson">
@@ -131,6 +192,8 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
                   <h2>{s.title}</h2>
                 )}
                 <LessonBlocks
+                  key={`${mode}-${attempt}`}
+                  mode={mode}
                   blocks={s.blocks}
                   lessonId={lesson.id}
                   evidence={evidence}
@@ -187,7 +250,7 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
           <GraduationCap size={25} />
           <h3>Modul {lesson.moduleId} · Dein Lernpfad</h3>
           <p className="subtle">
-            Theorie:{" "}
+            Grundlagen:{" "}
             {
               moduleLessons.filter((l) => p.theoryCompleted.includes(l.id))
                 .length
@@ -198,8 +261,14 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
                 practiceMastered(l, p.practiceCompleted),
               ).length
             }{" "}
-            / {moduleLessons.filter((l) => practiceTasks(l).length > 0).length}{" "}
-            prüfbare Lektionen
+            /{" "}
+            {
+              moduleLessons.filter((l) => basicPracticeTasks(l).length > 0)
+                .length
+            }{" "}
+            prüfbare Lektionen · Deep Dive:{" "}
+            {moduleLessons.filter((l) => deepDiveMastered(l, p)).length} /{" "}
+            {moduleLessons.filter((l) => deepDiveTasks(l).length > 0).length}
           </p>
           {moduleLessons.map((l, i) => (
             <Link
@@ -219,14 +288,20 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
                 {l.title}
                 <small>
                   {p.theoryCompleted.includes(l.id)
-                    ? "Theorie ✓"
-                    : "Theorie offen"}{" "}
+                    ? "Grundlagen ✓"
+                    : "Grundlagen offen"}{" "}
                   ·{" "}
                   {practiceMastered(l, p.practiceCompleted)
                     ? "Praxis ✓"
-                    : practiceTasks(l).length
+                    : basicPracticeTasks(l).length
                       ? "Praxis offen"
                       : "Praxis ungeprüft"}
+                  {" · "}
+                  {deepDiveMastered(l, p)
+                    ? "Deep Dive ✓"
+                    : deepDiveTasks(l).length
+                      ? "Deep Dive offen"
+                      : "Deep Dive geplant"}
                 </small>
               </div>
             </Link>

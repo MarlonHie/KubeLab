@@ -1,4 +1,5 @@
 import { challengeModels } from "./challenges";
+import { diagnosticCases } from "../../simulation-engine/src/diagnosis";
 import Ajv from "ajv";
 import schema from "../lesson.schema.json" with { type: "json" };
 import type { Lesson } from "./types";
@@ -43,6 +44,8 @@ export function parseLesson(value: unknown): Lesson {
       }
       if (b.type === "task") {
         const v = b.verification;
+        if (v.kind === "diagnosis" && !Object.hasOwn(diagnosticCases, v.caseId))
+          throw new Error(`${lesson.id}: Unbekannter Diagnosefall`);
         if (
           v.kind === "matching" &&
           v.items.some((i) => !v.options.includes(i.answer))

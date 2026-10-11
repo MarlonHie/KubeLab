@@ -17,7 +17,10 @@ export interface Question {
   correct: number;
   explanation: string;
 }
+export type LearningMode = "guided" | "challenge";
+export type TaskTier = "practice" | "deep-dive" | "exploration";
 export type Verification =
+  | { kind: "diagnosis"; caseId: string }
   | {
       kind: "state-machine";
       experimentId: string;
@@ -57,6 +60,7 @@ export type LessonBlock =
   | { type: "experiment"; id: string; kind: Experiment }
   | {
       type: "task";
+      tier?: TaskTier;
       id: string;
       title: string;
       prompt: string;

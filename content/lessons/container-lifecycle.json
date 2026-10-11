@@ -1,0 +1,220 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "container-lifecycle",
+  "moduleId": "02",
+  "title": "Container-Lifecycle und Fehleranalyse",
+  "description": "Created, Running, Exit, Restart und Readiness korrekt einordnen.",
+  "category": "CONTAINER FUNDAMENTALS",
+  "level": "Deep Dive",
+  "duration": 30,
+  "goals": [
+    "Created, Running, Exit, Restart und Readiness korrekt einordnen.",
+    "Befunde vor einer Korrektur erheben und alternative Ursachen ausschließen"
+  ],
+  "sections": [
+    {
+      "id": "concept",
+      "title": "Technischer Zusammenhang",
+      "navLabel": "Grundlagen",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Zustandsmaschine der Ausführung"
+        },
+        {
+          "type": "text",
+          "text": "Die OCI-Runtime unterscheidet unter anderem creating, created, running und stopped. Im created-Zustand ist die Umgebung vorbereitet, das spezifizierte Anwendungsprogramm wurde noch nicht gestartet. Welche Darstellung ein höheres Werkzeug zeigt, hängt von dessen API ab. Kubernetes-Pod-Phasen, CRI-Containerzustände und OCI-Zustände sind verwandte, aber nicht identische Modelle."
+        },
+        {
+          "type": "heading",
+          "text": "Exit und Wiederanlauf"
+        },
+        {
+          "type": "text",
+          "text": "Ein gestoppter Prozess startet nicht allein durch die OCI-Spezifikation erneut. Ein zuständiger Manager muss die gewünschte Restart-Policy umsetzen. Bei Kubernetes übernimmt das kubelet lokale Containerbetreuung; ein Controller kann auf einer anderen Ebene neue Pod-Objekte veranlassen. Der Neustart eines Containers innerhalb eines Pods ist deshalb kein neuer Pod mit neuer UID."
+        },
+        {
+          "type": "heading",
+          "text": "Stoppen und Daten"
+        },
+        {
+          "type": "text",
+          "text": "Geordnete Beendigung benötigt Zeit für Signalbehandlung und Aufräumen. Ein erzwungenes Ende kann offene Arbeit abbrechen. Anwendungsdaten in einer beschreibbaren Container-Schicht sind nach Entfernung nicht als dauerhaft gesichert anzusehen. Entscheidend sind geeignete Volumes und eine separate Datensicherung; ein neues Image ist kein Backup des bisherigen Laufzeitzustands."
+        },
+        {
+          "type": "table",
+          "caption": "Beobachtung und technische Bedeutung",
+          "headers": [
+            "Begriff / Befund",
+            "Bedeutung",
+            "Grenze der Aussage"
+          ],
+          "rows": [
+            [
+              "Created",
+              "Vorbereitet, Anwendung noch nicht gestartet",
+              "Keine Readiness"
+            ],
+            [
+              "Running",
+              "Prozess läuft",
+              "Kein garantierter Nutzerzugriff"
+            ],
+            [
+              "Exit 137",
+              "Oft Darstellung von SIGKILL",
+              "Allein kein OOM-Beweis"
+            ],
+            [
+              "Restart-Zähler",
+              "Wiederanläufe im beobachteten Kontext",
+              "Erklärt Ursache nicht allein"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guided-practice",
+      "title": "Geführte Praxis und externe Beobachtung",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "code",
+          "code": "sudo crictl ps -a\nsudo journalctl -u kubelet --since \"10 minutes ago\" --no-pager",
+          "caption": "Externe Diagnose auf einem Kubernetes-Node. Container-ID anschließend gezielt mit crictl inspect untersuchen; keine erfundenen Beispiel-IDs.",
+          "language": "bash",
+          "execution": "external"
+        },
+        {
+          "type": "text",
+          "text": "Notiere im eigenen Lab Beobachtung, betroffenen Kontext und Zeitpunkt. Die externen Befehle sind keine Voraussetzung für einen Browsernachweis; dieser bewertet ausschließlich die folgende Modellaufgabe."
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "tier": "practice",
+          "title": "Geführte Zuordnung",
+          "prompt": "Ordne die Beobachtungen ihrer technischen Erklärung zu. Vergleiche anschließend deine Begründung.",
+          "hint": "Trenne Mechanismus, beobachteten Zustand und Zuständigkeit.",
+          "solution": "Created ohne Start Anwendungsprozess wurde noch nicht ausgeführt. Running, aber nicht ready Laufzeit und Verkehrsbereitschaft sind getrennt. Exit 137 ohne weitere Befunde OOM ist eine Hypothese, noch kein Beweis.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Jede Beobachtung braucht die passende Ursache.",
+            "options": [
+              "Anwendungsprozess wurde noch nicht ausgeführt.",
+              "Laufzeit und Verkehrsbereitschaft sind getrennt.",
+              "OOM ist eine Hypothese, noch kein Beweis."
+            ],
+            "items": [
+              {
+                "prompt": "Created ohne Start",
+                "answer": "Anwendungsprozess wurde noch nicht ausgeführt."
+              },
+              {
+                "prompt": "Running, aber nicht ready",
+                "answer": "Laufzeit und Verkehrsbereitschaft sind getrennt."
+              },
+              {
+                "prompt": "Exit 137 ohne weitere Befunde",
+                "answer": "OOM ist eine Hypothese, noch kein Beweis."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Eine belastbare Diagnose verbindet Zeit und Kontext"
+        },
+        {
+          "type": "text",
+          "text": "Bei Exit 137 untersuche den Grund aus der Runtime, passende Speicherereignisse der cgroup und das Zeitfenster. Ein Administrator kann ebenfalls SIGKILL auslösen. Bei laufendem Prozess mit fehlendem Verkehr prüfe Readiness und Zugriffskette statt automatisch Neustarts zu erzwingen. Ein wiederholter Image-Pull-Fehler liegt noch vor dem Start; ein Anwendungscrash danach. Diese Trennung verhindert, dass eine neue Scheduling-Regel ein lokales Speicherproblem verdecken soll."
+        },
+        {
+          "type": "task",
+          "id": "diagnosis",
+          "tier": "deep-dive",
+          "title": "Eigenständige Fehleranalyse",
+          "prompt": "Erhebe Belege in selbst gewählter Reihenfolge. Leite Ursache und passende Korrektur ab. Ein unabhängiger Nachweis entsteht im Challenge-Modus ohne aufgedeckte Hilfe.",
+          "hint": "Beziehe alle Modellbefunde ein und schließe Erklärungen aus, die einer Beobachtung widersprechen.",
+          "solution": "Die Fallbegründung erklärt den Zusammenhang zwischen Befunden und Ursache.",
+          "verification": {
+            "kind": "diagnosis",
+            "caseId": "container-lifecycle"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Created bedeutet …",
+              "answers": [
+                "App bedient Nutzer",
+                "Umgebung vorbereitet, Programm noch nicht gestartet",
+                "Pod gelöscht"
+              ],
+              "correct": 1,
+              "explanation": "Umgebung vorbereitet, Programm noch nicht gestartet. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q2",
+              "prompt": "Wer garantiert laut OCI einen automatischen Restart?",
+              "answers": [
+                "Jedes Image",
+                "Der Digest",
+                "Die OCI-Spezifikation allein garantiert ihn nicht"
+              ],
+              "correct": 2,
+              "explanation": "Die OCI-Spezifikation allein garantiert ihn nicht. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q3",
+              "prompt": "Was stützt die OOM-Diagnose?",
+              "answers": [
+                "Passende Speicherereignisse im selben Kontext und Zeitfenster",
+                "Nur ein anderer Pod-Name",
+                "Ein erfolgreicher DNS-Test"
+              ],
+              "correct": 0,
+              "explanation": "Passende Speicherereignisse im selben Kontext und Zeitfenster. Die technischen Abschnitte erklären die Abgrenzung."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "OCI lifecycle 1.2.1",
+      "url": "https://github.com/opencontainers/runtime-spec/blob/v1.2.1/runtime.md"
+    },
+    {
+      "title": "Pod lifecycle",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+    },
+    {
+      "title": "Kernel cgroups",
+      "url": "https://docs.kernel.org/admin-guide/cgroup-v2.html"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

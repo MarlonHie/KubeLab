@@ -4,6 +4,7 @@ import type {
   LessonBlock,
   TaskBlock,
   QuizBlock,
+  LearningMode,
 } from "../../../../packages/lesson-engine/src/types";
 import { practiceKey } from "../../../../packages/lesson-engine/src";
 import {
@@ -13,6 +14,7 @@ import {
 import { useProgress } from "../stores/progress";
 import { ArchitectureExperiment } from "./ArchitectureExperiments";
 import { DeepDiveExperiment } from "./DeepDiveExperiments";
+import { diagnosticCases } from "../../../../packages/simulation-engine/src/diagnosis";
 // Deliberately small inline vocabulary. React escapes all text; no raw HTML or executable MDX.
 export function Inline({ text }: { text: string }) {
   const parts = text.split(
@@ -120,8 +122,8 @@ function KnowledgeCheck({
     <div className="quiz" data-testid="knowledge-check">
       <h2>{block.title}</h2>
       <p>
-        Beantworte alle {block.questions.length} Fragen richtig, um die Theorie
-        abzuschließen. Praxisaufgaben werden getrennt geprüft.
+        Beantworte alle {block.questions.length} Fragen richtig, um die
+        Grundlagen abzuschließen. Praxisaufgaben werden getrennt geprüft.
       </p>
       {block.questions.map((q, i) => (
         <fieldset key={q.id} className="architecture-question">
@@ -177,8 +179,8 @@ function KnowledgeCheck({
       {checked && (
         <p role="status" className={`notice ${passed ? "success" : "warning"}`}>
           {passed
-            ? "Alle Antworten sind richtig. Theorie verstanden und Lernstand aktualisiert."
-            : "Theorie noch nicht abgeschlossen. Lies die Begründungen und versuche es erneut."}
+            ? "Alle Antworten sind richtig. Grundlagen abgeschlossen und Lernstand aktualisiert."
+            : "Grundlagen noch nicht abgeschlossen. Lies die Begründungen und versuche es erneut."}
         </p>
       )}
     </div>
@@ -188,137 +190,218 @@ function PracticeTask({
   block,
   lessonId,
   evidence,
+  mode,
 }: {
   block: TaskBlock;
   lessonId: string;
   evidence: Record<string, string[]>;
+  mode: LearningMode;
 }) {
   const p = useProgress();
   const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [inspected, setInspected] = useState<string[]>([]);
   const [checked, setChecked] = useState(false);
+  const [assisted, setAssisted] = useState(false);
+  const [hint, setHint] = useState(false);
+  const [solution, setSolution] = useState(false);
   const v = block.verification;
+  const diagnostic = v.kind === "diagnosis" ? diagnosticCases[v.caseId] : null;
   const observations =
     v.kind === "experiment" || v.kind === "state-machine"
       ? evidence[v.experimentId] || []
-      : [];
+      : inspected;
   const checks = checkPractice(block, answers, observations);
+  const passed = checks.length > 0 && checks.every((c) => c.passed);
   const key = practiceKey(lessonId, block.id);
-  const mastered = p.practiceCompleted.includes(key);
-  const body = (
-    <>
-      <p>
-        <Inline text={block.prompt} />
+  const independent = block.tier === "deep-dive";
+  const choose = (i: number, value: string) => {
+    setAnswers((old) => ({ ...old, [i]: value }));
+    setChecked(false);
+  };
+  const options = (label: string, i: number, values: string[]) => (
+    <label className="matching-row">
+      <span>
+        <Inline text={label} />
+      </span>
+      <select
+        value={answers[i] || ""}
+        onChange={(e) => choose(i, e.target.value)}
+      >
+        <option value="">Antwort wählen</option>
+        {values.map((o) => (
+          <option key={o}>{o}</option>
+        ))}
+      </select>
+    </label>
+  );
+  if (mode === "challenge" && v.kind === "state-machine") return null;
+  return (
+    <section className="lesson-task" data-testid={`practice-${block.id}`}>
+      <h3>{block.title}</h3>
+      <p className="subtle">
+        {independent
+          ? "Optionaler Deep-Dive-Nachweis"
+          : block.tier === "exploration"
+            ? "Optionale Modellübung"
+            : "Grundlegende Praxis"}{" "}
+        ·{" "}
+        {mode === "challenge"
+          ? "Eigenständige Challenge"
+          : "Geführter Lernmodus"}
       </p>
-      <details>
-        <summary>Hinweis anzeigen</summary>
-        <p>
+      <p>
+        <Inline
+          text={
+            mode === "challenge" && v.kind === "state-machine"
+              ? "Zeige im Modell einen fehlgeschlagenen Übergang und die korrekte Wiederherstellung. Prüfe den vollständigen Ablauf ohne eingeblendeten Prüfpfad. Diese Modellübung ersetzt die eigenständige Diagnose nicht."
+              : block.prompt
+          }
+        />
+      </p>
+      {diagnostic && (
+        <div className="diagnostic-workbench">
+          <div className="eyebrow">
+            MODELLFALL · KEINE ECHTEN MESSWERTE ODER TERMINALAUSGABEN
+          </div>
+          <h4>{diagnostic.title}</h4>
+          <p>{diagnostic.symptom}</p>
+          <div className="deep-actions">
+            {diagnostic.evidence.map((e) => (
+              <button
+                className="button secondary"
+                key={e.id}
+                onClick={() => {
+                  setInspected((old) => [...new Set([...old, e.id])]);
+                  setChecked(false);
+                }}
+              >
+                {e.label}
+              </button>
+            ))}
+          </div>
+          {diagnostic.evidence
+            .filter((e) => inspected.includes(e.id))
+            .map((e) => (
+              <p className="notice" key={e.id}>
+                <strong>{e.label}: </strong>
+                {e.observation}
+              </p>
+            ))}
+          {mode === "guided" && (
+            <p>
+              Erhebe die verfügbaren Befunde und vergleiche die Ursachen. Es
+              gibt keine vorgeschriebene Untersuchungsreihenfolge.
+            </p>
+          )}
+          {options("Wahrscheinlichste Ursache", 0, diagnostic.causes)}
+          {options("Begründete Korrektur", 1, diagnostic.remedies)}
+        </div>
+      )}
+      {v.kind === "matching" && (
+        <>
+          <p>{v.instruction}</p>
+          {v.items.map((item, i) => (
+            <div key={item.prompt}>{options(item.prompt, i, v.options)}</div>
+          ))}
+        </>
+      )}
+      <div className="deep-actions">
+        <button
+          className="button secondary"
+          onClick={() => {
+            setHint(true);
+            setAssisted(true);
+          }}
+        >
+          Hinweis anzeigen
+        </button>
+        <button
+          className="button secondary"
+          onClick={() => {
+            setSolution(true);
+            setAssisted(true);
+          }}
+        >
+          Lösung bewusst aufdecken
+        </button>
+      </div>
+      {hint && (
+        <p className="notice">
           <Inline text={block.hint} />
         </p>
-      </details>
-      <details>
-        <summary>Lösung und Begründung vergleichen</summary>
-        <p>
-          <Inline text={block.solution} />
+      )}
+      {solution && (
+        <p className="notice">
+          <strong>Lösung: </strong>
+          <Inline text={diagnostic?.explanation || block.solution} />
         </p>
-      </details>
-      {v.kind === "reflection" ? (
+      )}
+      {assisted && independent && (
         <p className="subtle">
-          Offene Reflexion · kein automatischer Praxisnachweis.
+          Dieser Versuch nutzt Hilfe und zählt als Übung. Für einen
+          eigenständigen Nachweis starte einen neuen Versuch ohne Hilfe.
         </p>
-      ) : (
+      )}
+      {v.kind !== "reflection" ? (
         <>
-          <p>
-            {v.kind === "matching"
-              ? v.instruction
-              : "Führe die Schritte im Experiment aus und prüfe anschließend deine Aufgabe. Zwischenstände gelten für diesen Lektionsbesuch; ein Experiment-Reset löscht sie."}
-          </p>
-          {v.kind === "matching" &&
-            v.items.map((item, i) => (
-              <label className="matching-row" key={item.prompt}>
-                <span>
-                  <Inline text={item.prompt} />
-                </span>
-                <select
-                  value={answers[i] || ""}
-                  onChange={(e) => {
-                    setAnswers((old) => ({ ...old, [i]: e.target.value }));
-                    setChecked(false);
-                  }}
-                >
-                  <option value="">Zuordnung wählen</option>
-                  {v.options.map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </select>
-              </label>
-            ))}
-          {(v.kind === "experiment" ||
-            v.kind === "state-machine" ||
-            checked) && (
-            <ul className="practice-checks">
-              {checks.map((c, i) => (
-                <li key={i}>
-                  {v.kind === "experiment" ||
-                  v.kind === "state-machine" ||
-                  checked
-                    ? c.passed
-                      ? "✓ "
-                      : "○ "
-                    : ""}
-                  {c.label}
-                  {checked && !c.passed ? " – noch offen" : ""}
-                </li>
-              ))}
-            </ul>
-          )}
+          {mode === "guided" &&
+            (v.kind === "experiment" ||
+              v.kind === "state-machine" ||
+              checked) && (
+              <ul className="practice-checks">
+                {checks.map((c, i) => (
+                  <li key={i}>
+                    {c.passed ? "✓ " : "○ "}
+                    {c.label}
+                  </li>
+                ))}
+              </ul>
+            )}
           <button
             className="button primary"
             onClick={() => {
               setChecked(true);
-              if (checks.length > 0 && checks.every((c) => c.passed))
+              if (passed)
                 p.update({
                   practiceCompleted: [
                     ...new Set([...p.practiceCompleted, key]),
                   ],
+                  independentCompleted:
+                    independent && mode === "challenge" && !assisted
+                      ? [...new Set([...p.independentCompleted, key])]
+                      : p.independentCompleted,
                 });
             }}
           >
             Praxisaufgabe prüfen
           </button>
           {checked && (
-            <p
-              role="status"
-              className={
-                checks.every((c) => c.passed) ? "result-ok" : "result-fail"
-              }
-            >
-              {checks.every((c) => c.passed)
+            <p role="status" className={passed ? "result-ok" : "result-fail"}>
+              {passed
                 ? "Praxisaufgabe erfolgreich geprüft."
-                : "Noch nicht gelöst. Prüfe die offenen Schritte oder Zuordnungen."}
+                : "Noch nicht gelöst. Prüfe Befunde, Ursache und Korrektur beziehungsweise deinen Modellablauf."}
+              {passed && independent && (mode !== "challenge" || assisted)
+                ? " Als Übung gespeichert; eigenständiger Nachweis noch offen."
+                : ""}
             </p>
           )}
           <p className="subtle">
-            {mastered
+            {p.practiceCompleted.includes(key)
               ? "Praxisnachweis im Lernstand erfasst."
-              : "Noch kein gespeicherter Praxisnachweis."}{" "}
-            Der Nachweis gilt für diese Modellaufgabe, nicht für einen echten
-            Clusterbetrieb.
+              : "Noch kein gespeicherter Praxisnachweis."}
+            {independent
+              ? p.independentCompleted.includes(key)
+                ? " Eigenständiger Nachweis erfasst."
+                : " Eigenständiger Nachweis offen."
+              : ""}{" "}
+            Gilt für diese Modellaufgabe, nicht für echten Systembetrieb.
           </p>
         </>
+      ) : (
+        <p className="subtle">
+          Offene Reflexion · kein automatischer Praxisnachweis.
+        </p>
       )}
-    </>
-  );
-  if (v.kind === "reflection")
-    return (
-      <details className="expert-task">
-        <summary>{block.title}</summary>
-        {body}
-      </details>
-    );
-  return (
-    <section className="lesson-task" data-testid={`practice-${block.id}`}>
-      <h3>{block.title}</h3>
-      {body}
     </section>
   );
 }
@@ -327,8 +410,10 @@ export function LessonBlocks({
   lessonId,
   evidence,
   onEvidence,
+  mode = "guided",
 }: {
   blocks: LessonBlock[];
+  mode?: LearningMode;
   lessonId: string;
   evidence: Record<string, string[]>;
   onEvidence: (id: string, event: string | null) => void;
@@ -411,7 +496,15 @@ export function LessonBlocks({
             if (
               block.kind === "raft-internals" ||
               block.kind === "scheduler-internals"
-            )
+            ) {
+              if (mode === "challenge")
+                return (
+                  <p className="notice" key={key}>
+                    Das geführte Modell ist im Lernmodus verfügbar. Bearbeite
+                    hier die eigenständigen Transfer- und Diagnoseaufgaben ohne
+                    vorgeschriebenen Aktionspfad.
+                  </p>
+                );
               return (
                 <DeepDiveExperiment
                   key={key}
@@ -420,6 +513,7 @@ export function LessonBlocks({
                   onAction={(action) => onEvidence(block.id, action)}
                 />
               );
+            }
             return (
               <ArchitectureExperiment
                 key={key}
@@ -434,6 +528,7 @@ export function LessonBlocks({
                 block={block}
                 lessonId={lessonId}
                 evidence={evidence}
+                mode={mode}
               />
             );
           case "quiz":

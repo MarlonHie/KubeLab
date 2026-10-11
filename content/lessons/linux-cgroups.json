@@ -1,0 +1,216 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "linux-cgroups",
+  "moduleId": "01",
+  "title": "cgroups v2 und Ressourcenengpässe",
+  "description": "CPU-Throttling, Speicherdruck und PID-Grenzen anhand getrennter Signale erkennen.",
+  "category": "LINUX FUNDAMENTALS",
+  "level": "Deep Dive",
+  "duration": 30,
+  "goals": [
+    "CPU-Throttling, Speicherdruck und PID-Grenzen anhand getrennter Signale erkennen.",
+    "Befunde vor einer Korrektur erheben und alternative Ursachen ausschließen"
+  ],
+  "sections": [
+    {
+      "id": "concept",
+      "title": "Technischer Zusammenhang",
+      "navLabel": "Grundlagen",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Hierarchie statt eigener Maschine"
+        },
+        {
+          "type": "text",
+          "text": "cgroup v2 ordnet Prozesse einer gemeinsamen Hierarchie zu. Controller verwalten Ressourcen innerhalb dieses Baums; übergeordnete Beschränkungen können die Wirkung einer lokalen Einstellung begrenzen. Sichtbare Controller, aktivierte subtree_control-Einträge und Delegation bestimmen, was ein Unterbaum tatsächlich verwalten darf. Ein Container erhält dadurch keinen eigenen physikalischen CPU-Kern und keinen zweiten Kernel."
+        },
+        {
+          "type": "heading",
+          "text": "CPU-Budget und Gewicht"
+        },
+        {
+          "type": "text",
+          "text": "cpu.max beschreibt Quote und Periode, cpu.weight eine relative Gewichtung bei Konkurrenz. Eine Quote von 50000 Mikrosekunden pro 100000 Mikrosekunden entspricht langfristig einem halben CPU-Zeitanteil. Threads können das Budget parallel verbrauchen. Eine Gewichtung ist hingegen keine feste Obergrenze. Steigende Throttling-Zähler bei ausreichender Nachfrage helfen, das aktive Budget von einer allgemeinen Host-Überlastung zu unterscheiden."
+        },
+        {
+          "type": "heading",
+          "text": "Speicher und Prozesse"
+        },
+        {
+          "type": "text",
+          "text": "memory.high löst Druck und Rückgewinnung aus; memory.max begrenzt die Nutzung härter und kann bei nicht ausreichender Rückgewinnung einen cgroup-OOM auslösen. memory.events und der betroffene Zeitraum helfen bei der Einordnung. Ein einzelner Exit-Code reicht nicht. pids.max beschränkt die Zahl der Tasks im cgroup-Kontext; fork kann daher trotz ausreichendem Speicher scheitern."
+        },
+        {
+          "type": "table",
+          "caption": "Beobachtung und technische Bedeutung",
+          "headers": [
+            "Begriff / Befund",
+            "Bedeutung",
+            "Grenze der Aussage"
+          ],
+          "rows": [
+            [
+              "cpu.max",
+              "CPU-Bandbreitenbudget",
+              "Kein CPU-Pinning"
+            ],
+            [
+              "cpu.weight",
+              "Relative Gewichtung bei Konkurrenz",
+              "Keine feste Laufzeitgarantie"
+            ],
+            [
+              "memory.events",
+              "Ereigniszähler für Speicherdruck/OOM",
+              "Mit Zeitfenster und betroffener Gruppe korrelieren"
+            ],
+            [
+              "pids.max",
+              "Begrenzung von Tasks",
+              "Kein Speicherlimit"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guided-practice",
+      "title": "Geführte Praxis und externe Beobachtung",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "code",
+          "code": "cat /proc/self/cgroup\nfindmnt -t cgroup2\ncat /sys/fs/cgroup/cgroup.controllers",
+          "caption": "Erst Mount und eigene Zugehörigkeit feststellen. cpu.stat und memory.events anschließend am tatsächlich zugehörigen Unterpfad lesen, nicht blind nur an der Wurzel.",
+          "language": "bash",
+          "execution": "external"
+        },
+        {
+          "type": "text",
+          "text": "Notiere im eigenen Lab Beobachtung, betroffenen Kontext und Zeitpunkt. Die externen Befehle sind keine Voraussetzung für einen Browsernachweis; dieser bewertet ausschließlich die folgende Modellaufgabe."
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "tier": "practice",
+          "title": "Geführte Zuordnung",
+          "prompt": "Ordne die Beobachtungen ihrer technischen Erklärung zu. Vergleiche anschließend deine Begründung.",
+          "hint": "Trenne Mechanismus, beobachteten Zustand und Zuständigkeit.",
+          "solution": "Host hat freie CPU, nr_throttled steigt Ein cgroup-Budget kann trotzdem bremsen. Relative Priorität bei CPU-Konkurrenz cpu.weight statt fester Quote betrachten. Fork scheitert an Task-Grenze pids.max und aktuelle Task-Zahl prüfen.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Jede Beobachtung braucht die passende Ursache.",
+            "options": [
+              "Ein cgroup-Budget kann trotzdem bremsen.",
+              "cpu.weight statt fester Quote betrachten.",
+              "pids.max und aktuelle Task-Zahl prüfen."
+            ],
+            "items": [
+              {
+                "prompt": "Host hat freie CPU, nr_throttled steigt",
+                "answer": "Ein cgroup-Budget kann trotzdem bremsen."
+              },
+              {
+                "prompt": "Relative Priorität bei CPU-Konkurrenz",
+                "answer": "cpu.weight statt fester Quote betrachten."
+              },
+              {
+                "prompt": "Fork scheitert an Task-Grenze",
+                "answer": "pids.max und aktuelle Task-Zahl prüfen."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Abrechnung ist nicht allein Prozess-RSS"
+        },
+        {
+          "type": "text",
+          "text": "Container-Speicher umfasst mehr als den sichtbaren Heap eines Prozesses, etwa dateibezogene Nutzung und gemeinsam abgerechnete Ressourcen nach Kernel-Regeln. Betrachte deshalb memory.current, memory.stat, relevante Limits und Ereignisse gemeinsam. Bei systemd-verwalteten Gruppen sollten Änderungen über den zuständigen Manager und dessen Delegation erfolgen. Das Umgehen seiner Verwaltung führt zu widersprüchlichen Erwartungen über die cgroup-Struktur."
+        },
+        {
+          "type": "task",
+          "id": "diagnosis",
+          "tier": "deep-dive",
+          "title": "Eigenständige Fehleranalyse",
+          "prompt": "Erhebe Belege in selbst gewählter Reihenfolge. Leite Ursache und passende Korrektur ab. Ein unabhängiger Nachweis entsteht im Challenge-Modus ohne aufgedeckte Hilfe.",
+          "hint": "Beziehe alle Modellbefunde ein und schließe Erklärungen aus, die einer Beobachtung widersprechen.",
+          "solution": "Die Fallbegründung erklärt den Zusammenhang zwischen Befunden und Ursache.",
+          "verification": {
+            "kind": "diagnosis",
+            "caseId": "linux-cgroups"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "cpu.max 50000 100000 entspricht langfristig …",
+              "answers": [
+                "einem halben CPU-Zeitanteil",
+                "50 CPU-Kernen",
+                "50 MiB"
+              ],
+              "correct": 0,
+              "explanation": "einem halben CPU-Zeitanteil. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q2",
+              "prompt": "Was ist kein fester CPU-Deckel?",
+              "answers": [
+                "cpu.max",
+                "cpu.weight",
+                "Ein übergeordnetes CPU-Limit"
+              ],
+              "correct": 1,
+              "explanation": "cpu.weight. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q3",
+              "prompt": "Welcher Befund stützt cgroup-OOM?",
+              "answers": [
+                "Beliebiger Exit 137 allein",
+                "Andere PID",
+                "Passender oom_kill-Anstieg im Zeitfenster"
+              ],
+              "correct": 2,
+              "explanation": "Passender oom_kill-Anstieg im Zeitfenster. Die technischen Abschnitte erklären die Abgrenzung."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Kernel cgroup v2",
+      "url": "https://docs.kernel.org/admin-guide/cgroup-v2.html"
+    },
+    {
+      "title": "systemd resource control",
+      "url": "https://github.com/systemd/systemd/blob/v257/man/systemd.resource-control.xml"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

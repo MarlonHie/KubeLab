@@ -1,0 +1,224 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "container-cri",
+  "moduleId": "02",
+  "title": "CRI: Vertrag und Pod Sandbox",
+  "description": "RuntimeService, ImageService und Pod-Sandbox-Diagnose verstehen.",
+  "category": "CONTAINER FUNDAMENTALS",
+  "level": "Deep Dive",
+  "duration": 30,
+  "goals": [
+    "RuntimeService, ImageService und Pod-Sandbox-Diagnose verstehen.",
+    "Befunde vor einer Korrektur erheben und alternative Ursachen ausschließen"
+  ],
+  "sections": [
+    {
+      "id": "concept",
+      "title": "Technischer Zusammenhang",
+      "navLabel": "Grundlagen",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Ein API-Vertrag statt einer Engine"
+        },
+        {
+          "type": "text",
+          "text": "CRI beschreibt die Kommunikation zwischen kubelet und einer kompatiblen Runtime. Der RuntimeService übernimmt Sandbox- und Containeroperationen; der ImageService behandelt Image-bezogene Operationen. Der Zugriff erfolgt auf einen konfigurierten Endpunkt. Ein erreichbarer Unix-Socket sagt zunächst nur etwas über den Transport aus; der erwartete Dienst muss dort auch angeboten werden."
+        },
+        {
+          "type": "heading",
+          "text": "Sandbox und Container"
+        },
+        {
+          "type": "text",
+          "text": "RunPodSandbox bereitet die Sandbox als Ausführungskontext des Pods vor. Container werden darin angelegt und gestartet. Die Runtime integriert dabei weitere Komponenten, beispielsweise für das Pod-Netzwerk. Eine fehlgeschlagene Sandbox kann verhindern, dass überhaupt ein Anwendungscontainer entsteht. Ein erfolgreicher Containerstart garantiert umgekehrt nicht, dass die Anwendung bereit für Nutzerverkehr ist."
+        },
+        {
+          "type": "heading",
+          "text": "Clients haben unterschiedliche Verträge"
+        },
+        {
+          "type": "text",
+          "text": "crictl spricht CRI. ctr spricht die containerd-API und ist für dessen Diagnose gedacht. Ein erfolgreicher ctr-Aufruf beweist deshalb keine funktionierende CRI-Integration. Bei Runtime-Versionen können Plugin-Namen und Konfigurationsstruktur variieren; übertrage Konfigurationsausschnitte nicht ungeprüft zwischen Hauptversionen."
+        },
+        {
+          "type": "table",
+          "caption": "Beobachtung und technische Bedeutung",
+          "headers": [
+            "Begriff / Befund",
+            "Bedeutung",
+            "Grenze der Aussage"
+          ],
+          "rows": [
+            [
+              "RuntimeService",
+              "Sandbox- und Container-Lifecycle",
+              "Kein Kubernetes-Scheduler"
+            ],
+            [
+              "ImageService",
+              "Image-Verwaltung über CRI",
+              "Kein Pod-Readiness-Nachweis"
+            ],
+            [
+              "crictl",
+              "CRI-Diagnose",
+              "Kein Ersatz für Deployment-Controller"
+            ],
+            [
+              "ctr",
+              "containerd-Diagnose",
+              "Kann bei defektem CRI trotzdem funktionieren"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guided-practice",
+      "title": "Geführte Praxis und externe Beobachtung",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "code",
+          "code": "sudo crictl info\nsudo crictl pods\nsudo crictl ps -a",
+          "caption": "Für diese Abfragen muss crictl auf den tatsächlichen Runtime-/Image-Endpunkt zeigen. Die Browseranwendung führt sie nicht aus.",
+          "language": "bash",
+          "execution": "external"
+        },
+        {
+          "type": "text",
+          "text": "Notiere im eigenen Lab Beobachtung, betroffenen Kontext und Zeitpunkt. Die externen Befehle sind keine Voraussetzung für einen Browsernachweis; dieser bewertet ausschließlich die folgende Modellaufgabe."
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "tier": "practice",
+          "title": "Geführte Zuordnung",
+          "prompt": "Ordne die Beobachtungen ihrer technischen Erklärung zu. Vergleiche anschließend deine Begründung.",
+          "hint": "Trenne Mechanismus, beobachteten Zustand und Zuständigkeit.",
+          "solution": "Socket erreichbar, CRI-Dienst fehlt Plugin und angebotenen Vertrag prüfen. ctr funktioniert containerd erreichbar, CRI damit noch nicht bewiesen. Sandbox scheitert vor Containerstart Runtime-/Sandbox-/Netzwerkvorbereitung untersuchen.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Jede Beobachtung braucht die passende Ursache.",
+            "options": [
+              "Plugin und angebotenen Vertrag prüfen.",
+              "containerd erreichbar, CRI damit noch nicht bewiesen.",
+              "Runtime-/Sandbox-/Netzwerkvorbereitung untersuchen."
+            ],
+            "items": [
+              {
+                "prompt": "Socket erreichbar, CRI-Dienst fehlt",
+                "answer": "Plugin und angebotenen Vertrag prüfen."
+              },
+              {
+                "prompt": "ctr funktioniert",
+                "answer": "containerd erreichbar, CRI damit noch nicht bewiesen."
+              },
+              {
+                "prompt": "Sandbox scheitert vor Containerstart",
+                "answer": "Runtime-/Sandbox-/Netzwerkvorbereitung untersuchen."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Vom Fehler zur zuständigen Schicht"
+        },
+        {
+          "type": "text",
+          "text": "Bei einem Transportfehler prüfst du Socket-Pfad, Runtime-Prozess und Berechtigung. Bei einem nicht angebotenen RuntimeService prüfst du Version und CRI-Integration. Bei einer existierenden, aber nicht bereiten Sandbox untersuchst du Runtime- und Netzwerkbefunde. Ein Registry-Authentifizierungsfehler liegt dagegen im Image-Pfad. Wähle die erste fehlgeschlagene Grenze statt gleichzeitig kubelet, Netzwerk und Registry-Konfiguration zu verändern."
+        },
+        {
+          "type": "task",
+          "id": "diagnosis",
+          "tier": "deep-dive",
+          "title": "Eigenständige Fehleranalyse",
+          "prompt": "Erhebe Belege in selbst gewählter Reihenfolge. Leite Ursache und passende Korrektur ab. Ein unabhängiger Nachweis entsteht im Challenge-Modus ohne aufgedeckte Hilfe.",
+          "hint": "Beziehe alle Modellbefunde ein und schließe Erklärungen aus, die einer Beobachtung widersprechen.",
+          "solution": "Die Fallbegründung erklärt den Zusammenhang zwischen Befunden und Ursache.",
+          "verification": {
+            "kind": "diagnosis",
+            "caseId": "container-cri"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "CRI ist …",
+              "answers": [
+                "ein eigener Kernel",
+                "ein Schnittstellenvertrag",
+                "ein Ingress"
+              ],
+              "correct": 1,
+              "explanation": "ein Schnittstellenvertrag. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q2",
+              "prompt": "Wer spricht CRI?",
+              "answers": [
+                "crictl",
+                "jeder ctr-Befehl",
+                "etcdctl"
+              ],
+              "correct": 0,
+              "explanation": "crictl. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q3",
+              "prompt": "RunPodSandbox betrifft …",
+              "answers": [
+                "Deployment-Rollback",
+                "DNS-Namensvergabe im Internet",
+                "Pod-Ausführungskontext"
+              ],
+              "correct": 2,
+              "explanation": "Pod-Ausführungskontext. Die technischen Abschnitte erklären die Abgrenzung."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "CRI API v0.35.0",
+      "url": "https://github.com/kubernetes/cri-api/blob/v0.35.0/pkg/apis/runtime/v1/api.proto"
+    },
+    {
+      "title": "Container runtimes",
+      "url": "https://kubernetes.io/docs/setup/production-environment/container-runtimes/"
+    },
+    {
+      "title": "crictl",
+      "url": "https://kubernetes.io/docs/tasks/debug/debug-cluster/crictl/"
+    },
+    {
+      "title": "containerd CRI config",
+      "url": "https://containerd.io/docs/2.4/cri/config/"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

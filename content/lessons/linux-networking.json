@@ -1,0 +1,240 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "linux-networking",
+  "moduleId": "01",
+  "title": "Linux-Netzwerk: vom Socket zur Route",
+  "description": "Bind-Adresse, Routing und DNS als getrennte Fehlerklassen diagnostizieren.",
+  "category": "LINUX FUNDAMENTALS",
+  "level": "Deep Dive",
+  "duration": 30,
+  "goals": [
+    "Bind-Adresse, Routing und DNS als getrennte Fehlerklassen diagnostizieren.",
+    "Befunde vor einer Korrektur erheben und alternative Ursachen ausschließen"
+  ],
+  "sections": [
+    {
+      "id": "concept",
+      "title": "Technischer Zusammenhang",
+      "navLabel": "Grundlagen",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Zuerst den richtigen Kontext wählen"
+        },
+        {
+          "type": "text",
+          "text": "Interfaces, Routingtabellen und Sockets gehören zu einem Netzwerk-Kontext. localhost bezeichnet diesen Kontext, nicht automatisch den Host oder einen anderen Container. Lauscht Teamboards Backend nur auf 127.0.0.1, ist es über eine andere lokale Adresse nicht automatisch erreichbar. Eine passende Bind-Adresse ist notwendig; Erreichbarkeit hängt zusätzlich von Route, Regeln und Rückweg ab."
+        },
+        {
+          "type": "heading",
+          "text": "Adresse, Route und Nachbar"
+        },
+        {
+          "type": "text",
+          "text": "Eine Interface-Adresse macht einen entfernten Dienst noch nicht erreichbar. Für das Ziel wird eine Route ausgewählt; innerhalb eines Netzes kann eine Nachbarauflösung nötig sein. ip route get untersucht die Routenauswahl für ein konkretes Ziel unter dem aktuellen Kontext. Es ist kein erfolgreicher Paketversand. Ein veth-Paar kann Namespaces verbinden, eine Bridge kann Layer-2-Segmente koppeln; keines ersetzt allein jede Routing- und Filterentscheidung."
+        },
+        {
+          "type": "heading",
+          "text": "Namen und Verbindungen separat testen"
+        },
+        {
+          "type": "text",
+          "text": "DNS übersetzt Namen, während TCP-Verbindungsaufbau eine andere Schicht prüft. Funktioniert die erwartete IP/Port-Kombination, aber der Name nicht, untersuche den verwendeten Resolver und dessen Erreichbarkeit. getent kann zusätzlich NSS-Quellen nutzen und ist nicht identisch mit einer reinen DNS-Abfrage. Ein erfolgreicher Ping beweist weder einen TCP-Listener noch eine funktionierende HTTP-Anwendung."
+        },
+        {
+          "type": "table",
+          "caption": "Beobachtung und technische Bedeutung",
+          "headers": [
+            "Begriff / Befund",
+            "Bedeutung",
+            "Grenze der Aussage"
+          ],
+          "rows": [
+            [
+              "ss -lnt",
+              "Lokale TCP-Listener",
+              "Kein Beweis für externen Zugriff"
+            ],
+            [
+              "ip route get",
+              "Ausgewählte Route",
+              "Kein End-to-End-Verbindungstest"
+            ],
+            [
+              "getent hosts",
+              "Auflösung über NSS",
+              "Nicht ausschließlich DNS"
+            ],
+            [
+              "HTTP-Test",
+              "Antwort der Anwendung auf diesen Pfad",
+              "Keine allgemeine Gesundheit aller Abhängigkeiten"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guided-practice",
+      "title": "Geführte Praxis und externe Beobachtung",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "code",
+          "code": "ip -br address\nip route\nss -lnt\ncat /etc/resolv.conf\ngetent hosts localhost",
+          "caption": "Nur lesen. Diagnose im betroffenen Netzwerk-Kontext durchführen; localhost dient hier nur als sicherer lokaler Namensvergleich.",
+          "language": "bash",
+          "execution": "external"
+        },
+        {
+          "type": "text",
+          "text": "Notiere im eigenen Lab Beobachtung, betroffenen Kontext und Zeitpunkt. Die externen Befehle sind keine Voraussetzung für einen Browsernachweis; dieser bewertet ausschließlich die folgende Modellaufgabe."
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "tier": "practice",
+          "title": "Geführte Zuordnung",
+          "prompt": "Ordne die Beobachtungen ihrer technischen Erklärung zu. Vergleiche anschließend deine Begründung.",
+          "hint": "Trenne Mechanismus, beobachteten Zustand und Zuständigkeit.",
+          "solution": "Nur 127.0.0.1:8080 lauscht Listener ist auf Loopback dieses Kontexts begrenzt. IP/Port funktioniert, Name nicht Namensauflösung separat untersuchen. Route vorhanden Routenauswahl allein beweist keinen erfolgreichen Zugriff.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Jede Beobachtung braucht die passende Ursache.",
+            "options": [
+              "Listener ist auf Loopback dieses Kontexts begrenzt.",
+              "Namensauflösung separat untersuchen.",
+              "Routenauswahl allein beweist keinen erfolgreichen Zugriff."
+            ],
+            "items": [
+              {
+                "prompt": "Nur 127.0.0.1:8080 lauscht",
+                "answer": "Listener ist auf Loopback dieses Kontexts begrenzt."
+              },
+              {
+                "prompt": "IP/Port funktioniert, Name nicht",
+                "answer": "Namensauflösung separat untersuchen."
+              },
+              {
+                "prompt": "Route vorhanden",
+                "answer": "Routenauswahl allein beweist keinen erfolgreichen Zugriff."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "NAT, Filter und Rückweg nicht zusammenwerfen"
+        },
+        {
+          "type": "text",
+          "text": "Destination NAT kann das Ziel eines Pakets übersetzen; Forwarding entscheidet über Weiterleitung und Filterregeln über Zulässigkeit. Selbst bei korrektem Hinweg muss der Rückweg passen. IPv4 und IPv6 können unterschiedliche Adressen und Routen verwenden. Prüfe deshalb ein konkretes Tupel aus Quellkontext, Zieladresse, Protokoll und Port, bevor du eine globale Aussage wie „das Netzwerk ist kaputt“ triffst. Kubernetes-Netzwerkregeln bauen später auf diesen Linux-Eigenschaften auf."
+        },
+        {
+          "type": "task",
+          "id": "diagnosis",
+          "tier": "deep-dive",
+          "title": "Eigenständige Fehleranalyse",
+          "prompt": "Erhebe Belege in selbst gewählter Reihenfolge. Leite Ursache und passende Korrektur ab. Ein unabhängiger Nachweis entsteht im Challenge-Modus ohne aufgedeckte Hilfe.",
+          "hint": "Beziehe alle Modellbefunde ein und schließe Erklärungen aus, die einer Beobachtung widersprechen.",
+          "solution": "Die Fallbegründung erklärt den Zusammenhang zwischen Befunden und Ursache.",
+          "verification": {
+            "kind": "diagnosis",
+            "caseId": "linux-networking"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "localhost zeigt auf …",
+              "answers": [
+                "immer den Kubernetes-Control-Plane-Node",
+                "den aktuellen Netzwerk-Kontext",
+                "die Registry"
+              ],
+              "correct": 1,
+              "explanation": "den aktuellen Netzwerk-Kontext. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q2",
+              "prompt": "Eine erfolgreiche Route-Abfrage beweist …",
+              "answers": [
+                "die Routenauswahl",
+                "einen HTTP-Status 200",
+                "ein gültiges DNS-Ergebnis"
+              ],
+              "correct": 0,
+              "explanation": "die Routenauswahl. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q3",
+              "prompt": "Welcher Test prüft einen lokalen TCP-Listener?",
+              "answers": [
+                "cpu.stat",
+                "waitpid",
+                "ss -lnt"
+              ],
+              "correct": 2,
+              "explanation": "ss -lnt. Die technischen Abschnitte erklären die Abgrenzung."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "network namespaces",
+      "url": "https://man7.org/linux/man-pages/man7/network_namespaces.7.html"
+    },
+    {
+      "title": "ip route",
+      "url": "https://man7.org/linux/man-pages/man8/ip-route.8.html"
+    },
+    {
+      "title": "ss",
+      "url": "https://man7.org/linux/man-pages/man8/ss.8.html"
+    },
+    {
+      "title": "getent",
+      "url": "https://man7.org/linux/man-pages/man1/getent.1.html"
+    },
+    {
+      "title": "network namespaces · Handbuch-Quelltext",
+      "url": "https://github.com/mkerrisk/man-pages/blob/master/man7/network_namespaces.7"
+    },
+    {
+      "title": "ip route · Handbuch-Quelltext",
+      "url": "https://github.com/iproute2/iproute2/blob/main/man/man8/ip-route.8.in"
+    },
+    {
+      "title": "ss · Handbuch-Quelltext",
+      "url": "https://github.com/iproute2/iproute2/blob/main/man/man8/ss.8"
+    },
+    {
+      "title": "getent · Handbuch-Quelltext",
+      "url": "https://github.com/mkerrisk/man-pages/blob/master/man1/getent.1"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

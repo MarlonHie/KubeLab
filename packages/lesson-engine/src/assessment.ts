@@ -1,3 +1,4 @@
+import { checkDiagnosis } from "../../simulation-engine/src/diagnosis";
 import { checkChallenge } from "./challenges";
 import type { Question, TaskBlock } from "./types";
 export function gradeQuiz(
@@ -17,6 +18,8 @@ export function checkPractice(
   observations: readonly string[],
 ): { label: string; passed: boolean }[] {
   const v = task.verification;
+  if (v.kind === "diagnosis")
+    return checkDiagnosis(v.caseId, observations, answers);
   if (v.kind === "state-machine")
     return checkChallenge(v.challengeId, observations);
   if (v.kind === "reflection") return [];

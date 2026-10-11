@@ -307,7 +307,8 @@
             "kind": "state-machine",
             "experimentId": "internals-model",
             "challengeId": "raft-partition-v1"
-          }
+          },
+          "tier": "exploration"
         },
         {
           "type": "task",
@@ -339,6 +340,20 @@
                 "answer": "Der unbestätigte Suffix kann nach Heilung ersetzt werden."
               }
             ]
+          },
+          "tier": "deep-dive"
+        },
+        {
+          "type": "task",
+          "id": "diagnosis",
+          "tier": "deep-dive",
+          "title": "Eigenständige Fehleranalyse",
+          "prompt": "Untersuche die verfügbaren Befunde. Entscheide selbst über die Reihenfolge und wähle die Ursache samt passender Korrektur. Für den unabhängigen Nachweis starte den Challenge-Modus ohne aufgedeckte Hilfe.",
+          "hint": "Prüfe die betroffene Schicht und vergleiche mindestens zwei unabhängige Beobachtungen.",
+          "solution": "Vergleiche deine Diagnose nach dem Versuch mit der Fallbegründung.",
+          "verification": {
+            "kind": "diagnosis",
+            "caseId": "etcd"
           }
         }
       ]

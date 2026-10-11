@@ -59,11 +59,11 @@ Codeblöcke unterstützen `bash`, `yaml`, `json` und `text`. Einfache Token-Fär
 }
 ```
 
-## Theorie und Praxis
+## Drei Abschlussstufen
 
-Ein vollständig richtig beantworteter Wissenscheck vergibt ausschließlich **Theorie verstanden**. **Praxis gemeistert** bedeutet, dass alle automatisch prüfbaren Aufgaben dieser Lektion erfolgreich geprüft wurden. Eine Lektion ohne solche Aufgaben zeigt **Praxis nicht automatisch geprüft**. Das ist insbesondere für die unveränderten Einführungen und externen VM-Übungen relevant.
+Ein vollständig richtiger Wissenscheck vergibt **Grundlagen abgeschlossen**. **Praxis abgeschlossen** verlangt nur Aufgaben mit `tier: "practice"` (Standard ohne Feld). Optionale Aufgaben zählen separat: `deep-dive` verlangt unabhängige Nachweise, `exploration` bezeichnet ergänzende geführte Übungen. **Deep Dive gemeistert** verlangt Grundlagen, grundlegende Praxis und alle unabhängigen `deep-dive`-Nachweise. Die sieben Architekturlektionen ohne komplexes Modell haben Transfer plus Diagnose; etcd/Scheduler zusätzlich eine optionale Modellübung.
 
-Es gibt drei Prüfarten:
+Es gibt folgende Prüfarten:
 
 - `reflection`: Offene Frage mit Hinweis und Lösung, ausdrücklich ohne automatische Bewertung. Dazu gehören die Expert-Reflexionen; das Öffnen ihrer Lösung vergibt keinen Abschluss.
 - `matching`: Deklarative `options` sowie `items` mit `prompt` und `answer`. Alle Zuordnungen müssen stimmen. Beispiel: Komponenten ihren Zuständigkeiten zuordnen. Diese Prüfung belegt eine Lernmodell-Aufgabe, keine praktische Administration eines echten Clusters.
@@ -84,19 +84,20 @@ Es gibt drei Prüfarten:
 
 Die Prüfungen benötigen keine zusätzliche VM-Infrastruktur. etcd und API melden Beobachtungen bei Schreibversuchen. Scheduling und Runtime melden sie über „Zustand für Aufgabe prüfen“. Nur registrierte Ereignisse des referenzierten Modells sind zulässig. Die Anforderungen bilden eine Menge beobachteter Fälle, keine zeitliche Reihenfolgenprüfung. Ein Modell-Reset verwirft die zugehörigen noch nicht gespeicherten Beobachtungen; ein bereits erworbener Abschluss bleibt als historischer Nachweis erhalten.
 
-Quizantworten, Zuordnungen, Rückmeldungen und Experimentzustände sind an die Lektions-ID gebunden und werden bei Navigation neu erzeugt. Nur bestandene Abschlüsse werden dauerhaft gespeichert. Der sichtbare Speicherstatus bestätigt den asynchronen IndexedDB-Schreibabschluss; vor einem Neuladen auf „Lernstand lokal gespeichert“ warten. Hinweise und Lösungen bleiben frei zugänglich; dies ist ein selbstgesteuertes Lernwerkzeug, keine manipulationssichere Zertifizierungsprüfung.
+Quizantworten, Zuordnungen, Rückmeldungen und Experimentzustände sind an die Lektions-ID gebunden und werden bei Navigation neu erzeugt. Nur bestandene Abschlüsse werden dauerhaft gespeichert. Der sichtbare Speicherstatus bestätigt den asynchronen IndexedDB-Schreibabschluss; vor einem Neuladen auf „Lernstand lokal gespeichert“ warten. Hinweise und Lösungen werden bewusst per Schaltfläche aufgedeckt; ein solcher Deep-Dive-Versuch wird als unterstützt markiert und vergibt keinen unabhängigen Nachweis. dies ist ein selbstgesteuertes Lernwerkzeug, keine manipulationssichere Zertifizierungsprüfung.
 
 Neue Aufgaben mit vorhandenen Prüfarten sind reine Inhaltsänderungen. Ein neues Experiment oder eine neue Prüfart benötigt einmalig eine registrierte, getestete Implementierung. Der JSON-Inhalt enthält keine ausführbaren Prüfskripte.
 
 ## Fortschrittsmigration
 
-Der IndexedDB-Schlüssel bleibt `kubelab-progress`. Schema-Version 3 enthält:
+Der IndexedDB-Schlüssel bleibt `kubelab-progress`. Schema-Version 4 enthält:
 
 - `theoryCompleted`: stabile Lektions-IDs;
 - `practiceCompleted`: qualifizierte Aufgaben-IDs, etwa `etcd/practice`;
+- `independentCompleted`: nur gültige Deep-Dive-Aufgaben, die auch in `practiceCompleted` erfasst sind;
 - unverändert Theme, letzte Lektion, Build-Lab-Checkpoints und Operations-Challenges.
 
-Version 2 migriert alle bisherigen `completed`-IDs zu Theorieabschlüssen. Version 1 behält die bestehende Ausnahme für den früheren einzelnen Control-Plane-Wissenscheck bei. Alte Stände erhalten **keine** Praxisabschlüsse, da dafür keine überprüften Nachweise vorliegen. Der geladene Altstand wird serialisiert als Version 3 zurückgeschrieben. Export und Import unterstützen beide Lernspuren; unbekannte oder offene Reflexionsaufgaben sind keine gültigen Praxisabschlüsse. Das separate gespeicherte Lab bleibt unverändert.
+Version 2 migriert alle bisherigen `completed`-IDs zu Theorieabschlüssen. Version 1 behält die bestehende Ausnahme für den früheren einzelnen Control-Plane-Wissenscheck bei. Versionen 1 und 2 erhalten **keine zusätzlichen** Praxisabschlüsse, da dafür keine überprüften Nachweise vorliegen. Version 3 behält vorhandene Theorie- und Praxisnachweise; `independentCompleted` beginnt leer. Der geladene Altstand wird serialisiert als Version 4 zurückgeschrieben. Export und Import unterstützen alle Lernspuren; unbekannte oder offene Reflexionsaufgaben sind keine gültigen Praxisabschlüsse. Das separate gespeicherte Lab bleibt unverändert.
 
 Die Originalinhalte von 0.2 liegen ausschließlich als Migrations-Testfixtures unter `tests/fixtures/`. Tests vergleichen sämtliche Textwerte und Quizfragen der neun Architekturlektionen sowie die Inhaltszeilen der vier ehemaligen MDX-Einführungen. Aktiver Inhalt wird ausschließlich in `content/lessons/` gepflegt.
 
@@ -107,3 +108,9 @@ Die Originalinhalte von 0.2 liegen ausschließlich als Migrations-Testfixtures u
 `verification: { kind: "state-machine", experimentId: "internals-model", challengeId: "raft-partition-v1" }` verweist auf einen früheren, kompatiblen Modellblock. Alternativ gibt es `scheduler-pipeline-v1`. Die Zuordnung ist in `challenges.ts` fest definiert; JSON enthält keinen ausführbaren Prüfer. Jede Aktion wird aus einem definierten Startzustand abgespielt. Prüfschritte verlangen die passende Aktion sowie Vor-/Nachbedingungen. Falsche Reihenfolge, Wiederholungen und Zusatzaktionen bestehen den geführten Prüfpfad nicht; Reset beginnt einen neuen Versuch. Dies ist eine Lernprüfung im Client, kein manipulationssicheres Zertifikat.
 
 Modellzustand und Prüfung verwenden dieselbe Aktionshistorie, einschließlich wiederholter Aktionen. Zwischenstände werden nicht als abgeschlossene Praxis gespeichert. Grundlagenaufgaben und Quizzes bleiben getrennt. Neue Transfer-Zuordnungen prüfen begründete Vorhersagen, aber bewerten keine freie Prosa. Die redaktionelle Lernziel-/Aufgaben-/Quiz-Zuordnung steht in `docs/content/module-03-gap-analysis.md`.
+
+## Diagnose und Lernmodus (0.3.0)
+
+`verification: {"kind":"diagnosis","caseId":"linux-cgroups"}` verweist auf einen in `diagnosis.ts` registrierten Modellfall. Der Schema-Validator prüft den Verweis. Der Prüfer verlangt alle Befunde sowie die richtige Ursache und Korrektur; die Reihenfolge des Erhebens ist beliebig. Die Karten sind verfasste Lehrszenarien und werden nicht als gemessene Systemausgaben dargestellt.
+
+Geführte Modellpfade erscheinen nur im Lernmodus. Im Challenge-Modus erscheinen stattdessen Transfer und eigenständige Diagnose ohne nächste Aktion oder laufende Prüfliste. Die Einordnung als unabhängiger Versuch gilt nur für diesen Browser-Versuch ohne geöffnete Hilfe. Sie verhindert weder das Erinnern früherer Lösungen noch Manipulation über Entwicklertools. Moduswechsel oder „Neuen Versuch starten“ leeren Antworten, Hilfestatus und flüchtige Modellhistorie. Ein bereits bestandener Nachweis bleibt erhalten.

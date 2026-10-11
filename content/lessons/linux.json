@@ -8,7 +8,9 @@
   "schemaVersion": 1,
   "moduleId": "01",
   "level": "Fundamentals",
-  "goals": [],
+  "goals": [
+    "Die Begriffe des Einstiegs voneinander abgrenzen und den anschließenden Fachlektionen zuordnen."
+  ],
   "sections": [
     {
       "id": "section-1",
@@ -73,6 +75,45 @@
       ]
     },
     {
+      "id": "guided-practice",
+      "title": "Einstieg praktisch prüfen",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "task",
+          "id": "practice",
+          "tier": "practice",
+          "title": "Begriffe zuordnen",
+          "prompt": "Ordne die Beobachtungen ihrer technischen Erklärung zu. Vergleiche anschließend deine Begründung.",
+          "hint": "Trenne Mechanismus, beobachteten Zustand und Zuständigkeit.",
+          "solution": "Isolation der Ressourcensicht Namespaces Begrenzung von Ressourcen cgroups Gleicher Host-Kernel Linux-Container",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Jede Beobachtung braucht die passende Ursache.",
+            "options": [
+              "Namespaces",
+              "cgroups",
+              "Linux-Container"
+            ],
+            "items": [
+              {
+                "prompt": "Isolation der Ressourcensicht",
+                "answer": "Namespaces"
+              },
+              {
+                "prompt": "Begrenzung von Ressourcen",
+                "answer": "cgroups"
+              },
+              {
+                "prompt": "Gleicher Host-Kernel",
+                "answer": "Linux-Container"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
       "id": "knowledge",
       "title": "Wissenscheck",
       "navLabel": "Wissenscheck",
@@ -84,7 +125,11 @@
           "questions": [
             {
               "id": "q1",
-              "answers": ["Namespaces", "cgroups", "Ein Container-Image"],
+              "answers": [
+                "Namespaces",
+                "cgroups",
+                "Ein Container-Image"
+              ],
               "correct": 1,
               "explanation": "cgroups bündeln Prozesse und regeln ihren Ressourcenverbrauch. Namespaces isolieren ihre Sicht auf Systemressourcen.",
               "prompt": "Was begrenzt den CPU- und Speicherverbrauch einer Prozessgruppe?"

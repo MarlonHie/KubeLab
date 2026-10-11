@@ -1,0 +1,227 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "linux-systemd",
+  "moduleId": "01",
+  "title": "systemd: Start, Abhängigkeiten und Diagnose",
+  "description": "Unit-Konfiguration, Aktivierung und Laufzeitbereitschaft unterscheiden.",
+  "category": "LINUX FUNDAMENTALS",
+  "level": "Deep Dive",
+  "duration": 30,
+  "goals": [
+    "Unit-Konfiguration, Aktivierung und Laufzeitbereitschaft unterscheiden.",
+    "Befunde vor einer Korrektur erheben und alternative Ursachen ausschließen"
+  ],
+  "sections": [
+    {
+      "id": "concept",
+      "title": "Technischer Zusammenhang",
+      "navLabel": "Grundlagen",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Unit-Datei und Manager-Zustand"
+        },
+        {
+          "type": "text",
+          "text": "Eine Service-Unit beschreibt, welchen Prozess systemd unter welchen Bedingungen betreuen soll. ExecStart ist keine frei interpretierte interaktive Shell-Zeile: Umleitungen und Pipelines brauchen eine explizite Shell, falls sie überhaupt notwendig sind. Drop-ins ergänzen die Konfiguration. systemctl cat zeigt die auf dem Dateisystem hinterlegten Fragmente; nach Änderungen muss der Manager seine Konfiguration mit daemon-reload neu einlesen. Das startet den Dienst noch nicht neu."
+        },
+        {
+          "type": "heading",
+          "text": "Enabled ist nicht active"
+        },
+        {
+          "type": "text",
+          "text": "enable richtet die Einbindung anhand des Install-Abschnitts ein. start aktiviert eine Unit jetzt. Ein enabled-Dienst kann fehlgeschlagen sein; ein manuell gestarteter Dienst kann active und gleichzeitig disabled sein. Type=exec erkennt den erfolgreichen exec-Aufruf des Startprogramms, garantiert aber keine fachliche Bereitschaft. Type=notify benötigt die passende READY=1-Benachrichtigung der Anwendung."
+        },
+        {
+          "type": "heading",
+          "text": "Abhängigkeit und Reihenfolge"
+        },
+        {
+          "type": "text",
+          "text": "After ordnet Starts relativ zueinander, zieht die andere Unit jedoch nicht allein in die Transaktion. Wants und Requires modellieren andere Beziehungen. Selbst After=network-online.target garantiert nicht, dass jede externe Datenbank erreichbar bleibt. Anwendungen müssen mit temporären Verbindungsfehlern umgehen; willkürliche Sleep-Zeiten ersetzen das nicht."
+        },
+        {
+          "type": "table",
+          "caption": "Beobachtung und technische Bedeutung",
+          "headers": [
+            "Begriff / Befund",
+            "Bedeutung",
+            "Grenze der Aussage"
+          ],
+          "rows": [
+            [
+              "daemon-reload",
+              "Unit-Dateien erneut einlesen",
+              "Kein automatischer Neustart des Dienstes"
+            ],
+            [
+              "enabled",
+              "Für Aktivierung über passende Targets eingebunden",
+              "Keine Bereitschaftsgarantie"
+            ],
+            [
+              "active",
+              "Unit gemäß ihrem Typ aktiviert",
+              "Nicht zwingend erfolgreiche HTTP-Anfragen"
+            ],
+            [
+              "Restart=on-failure",
+              "Automatischer Neustart unter passenden Fehlerbedingungen",
+              "Keine Reparatur einer ungültigen Konfiguration"
+            ]
+          ]
+        },
+        {
+          "type": "code",
+          "language": "text",
+          "execution": "example",
+          "caption": "Eigene Unit-Vorlage, keine installierte Unit. Benutzer teamboard und /opt/teamboard/backend müssen existieren; Type=exec bestätigt den Programmstart, nicht die HTTP-Bereitschaft.",
+          "code": "[Unit]\nDescription=Teamboard backend\nAfter=network.target\nStartLimitIntervalSec=60\nStartLimitBurst=3\n\n[Service]\nType=exec\nUser=teamboard\nExecStart=/opt/teamboard/backend\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target"
+        }
+      ]
+    },
+    {
+      "id": "guided-practice",
+      "title": "Geführte Praxis und externe Beobachtung",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "code",
+          "code": "systemctl cat containerd.service\nsystemctl show containerd.service -p ActiveState -p SubState -p ExecMainStatus\njournalctl -u containerd.service -b --no-pager -n 50",
+          "caption": "Lesende Diagnose für eine vorhandene containerd-Unit. Fehlende Installation oder Leserechte erklären eine leere bzw. abgewiesene Abfrage.",
+          "language": "bash",
+          "execution": "external"
+        },
+        {
+          "type": "text",
+          "text": "Notiere im eigenen Lab Beobachtung, betroffenen Kontext und Zeitpunkt. Die externen Befehle sind keine Voraussetzung für einen Browsernachweis; dieser bewertet ausschließlich die folgende Modellaufgabe."
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "tier": "practice",
+          "title": "Geführte Zuordnung",
+          "prompt": "Ordne die Beobachtungen ihrer technischen Erklärung zu. Vergleiche anschließend deine Begründung.",
+          "hint": "Trenne Mechanismus, beobachteten Zustand und Zuständigkeit.",
+          "solution": "enabled, aber failed Boot-Einbindung und Laufzeitstatus sind getrennt. Unit-Datei geändert Manager-Konfiguration neu laden; laufenden Prozess separat behandeln. Nur After eingetragen Reihenfolge allein fordert die andere Unit nicht an.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Jede Beobachtung braucht die passende Ursache.",
+            "options": [
+              "Boot-Einbindung und Laufzeitstatus sind getrennt.",
+              "Manager-Konfiguration neu laden; laufenden Prozess separat behandeln.",
+              "Reihenfolge allein fordert die andere Unit nicht an."
+            ],
+            "items": [
+              {
+                "prompt": "enabled, aber failed",
+                "answer": "Boot-Einbindung und Laufzeitstatus sind getrennt."
+              },
+              {
+                "prompt": "Unit-Datei geändert",
+                "answer": "Manager-Konfiguration neu laden; laufenden Prozess separat behandeln."
+              },
+              {
+                "prompt": "Nur After eingetragen",
+                "answer": "Reihenfolge allein fordert die andere Unit nicht an."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Restart-Schleifen begrenzen und Ursachen erhalten"
+        },
+        {
+          "type": "text",
+          "text": "RestartSec und Start-Limits schützen vor unkontrolliertem Wiederanlaufen. Eine wiederkehrende Konfigurationsursache verschwindet dadurch nicht. Prüfe Journal, Exit-Status, verwendeten Benutzer und Dateipfade im Dienstkontext. Nach einer Korrektur können ein bewusster Start und gegebenenfalls reset-failed erforderlich sein. KillMode beeinflusst, welche Prozesse beim Stoppen zur Unit gehören; isolierte Kindprozesse außerhalb der erwarteten Verwaltung verdienen eine gesonderte Untersuchung."
+        },
+        {
+          "type": "task",
+          "id": "diagnosis",
+          "tier": "deep-dive",
+          "title": "Eigenständige Fehleranalyse",
+          "prompt": "Erhebe Belege in selbst gewählter Reihenfolge. Leite Ursache und passende Korrektur ab. Ein unabhängiger Nachweis entsteht im Challenge-Modus ohne aufgedeckte Hilfe.",
+          "hint": "Beziehe alle Modellbefunde ein und schließe Erklärungen aus, die einer Beobachtung widersprechen.",
+          "solution": "Die Fallbegründung erklärt den Zusammenhang zwischen Befunden und Ursache.",
+          "verification": {
+            "kind": "diagnosis",
+            "caseId": "linux-systemd"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Was bewirkt daemon-reload?",
+              "answers": [
+                "Es repariert alle Apps.",
+                "Es beendet alle Container.",
+                "Es liest Unit-Konfiguration neu ein."
+              ],
+              "correct": 2,
+              "explanation": "Es liest Unit-Konfiguration neu ein.. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q2",
+              "prompt": "After allein …",
+              "answers": [
+                "ordnet, zieht aber nicht automatisch eine Unit hinein",
+                "garantiert Datenbankbereitschaft",
+                "ist identisch mit Requires"
+              ],
+              "correct": 0,
+              "explanation": "ordnet, zieht aber nicht automatisch eine Unit hinein. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q3",
+              "prompt": "Type=notify benötigt …",
+              "answers": [
+                "automatisches HTTP-Polling durch systemd",
+                "Bereitschaftsmeldung der Anwendung",
+                "einen neuen Kernel"
+              ],
+              "correct": 1,
+              "explanation": "Bereitschaftsmeldung der Anwendung. Die technischen Abschnitte erklären die Abgrenzung."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "systemd service",
+      "url": "https://github.com/systemd/systemd/blob/v257/man/systemd.service.xml"
+    },
+    {
+      "title": "systemd unit",
+      "url": "https://github.com/systemd/systemd/blob/v257/man/systemd.unit.xml"
+    },
+    {
+      "title": "systemctl",
+      "url": "https://github.com/systemd/systemd/blob/v257/man/systemctl.xml"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

@@ -1,0 +1,231 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "container-runtime",
+  "moduleId": "02",
+  "title": "containerd, Shims und runc",
+  "description": "Metadaten, Task-Ausführung und OCI-Runtime-Verantwortung auseinanderhalten.",
+  "category": "CONTAINER FUNDAMENTALS",
+  "level": "Deep Dive",
+  "duration": 30,
+  "goals": [
+    "Metadaten, Task-Ausführung und OCI-Runtime-Verantwortung auseinanderhalten.",
+    "Befunde vor einer Korrektur erheben und alternative Ursachen ausschließen"
+  ],
+  "sections": [
+    {
+      "id": "concept",
+      "title": "Technischer Zusammenhang",
+      "navLabel": "Grundlagen",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Manager und Ausführung"
+        },
+        {
+          "type": "text",
+          "text": "containerd verwaltet unter anderem Inhalt, Images, Snapshots und Container-Metadaten. Ein Task repräsentiert die laufzeitbezogene Ausführung. Eine vorhandene Containerdefinition ist deshalb nicht mit einem laufenden Prozess gleichzusetzen. Für Teamboard kann das Image bereits vorhanden sein, während die Task-Erzeugung an Runtime-Konfiguration oder Berechtigungen scheitert."
+        },
+        {
+          "type": "heading",
+          "text": "Die Shim-Grenze"
+        },
+        {
+          "type": "text",
+          "text": "Im Runtime-v2-Modell kommuniziert containerd mit einer Runtime-Integration über einen Shim. Beim runc-v2-Weg ruft dieser die OCI-Runtime auf. Der Shim betreut laufzeitnahe Kommunikation und Ereignisse; runc ist nicht der dauerhafte zentrale Cluster-Manager. Die konkrete Zuordnung von Shims zu Containern hängt von der Integration ab. Ein containerd-Neustart muss nicht jeden bestehenden Anwendungsprozess beenden, ist aber auch keine universelle Verfügbarkeitsgarantie."
+        },
+        {
+          "type": "heading",
+          "text": "OCI Bundle als Ausführungsbeschreibung"
+        },
+        {
+          "type": "text",
+          "text": "Ein OCI Runtime Bundle enthält die Konfiguration und eine Referenz auf das Root-Dateisystem. Darin stehen unter anderem Prozessargumente sowie Linux-spezifische Anforderungen an Namespaces, cgroups und Berechtigungen. Ein Bundle ist keine Registry und runc kein Image-Pull-Client. Der Aufrufer bereitet diese Eingaben vor und behandelt die Ergebnisse."
+        },
+        {
+          "type": "table",
+          "caption": "Beobachtung und technische Bedeutung",
+          "headers": [
+            "Begriff / Befund",
+            "Bedeutung",
+            "Grenze der Aussage"
+          ],
+          "rows": [
+            [
+              "containerd",
+              "Verwaltet Inhalt, Metadaten und Task-Lifecycle",
+              "Kein Ersatz für Kubernetes-Controller"
+            ],
+            [
+              "Shim",
+              "Runtime-v2-Kommunikation und Prozessbetreuung",
+              "Nicht gleich CRI"
+            ],
+            [
+              "runc",
+              "OCI-konforme Prozessumgebung und Startoperationen",
+              "Kein Scheduler oder Registry-Manager"
+            ],
+            [
+              "Containerdefinition",
+              "Gespeicherte Metadaten",
+              "Noch kein laufender Task"
+            ]
+          ]
+        },
+        {
+          "type": "code",
+          "language": "json",
+          "execution": "example",
+          "caption": "Eigenes OCI-Konfigurationsfragment zur Erklärung von Prozess und Rootfs; kein vollständiges validiertes Bundle. Binary und Libraries müssen im Rootfs vorhanden sein.",
+          "code": "{\n  \"ociVersion\": \"1.2.1\",\n  \"process\": {\"args\": [\"/app/backend\"], \"cwd\": \"/app\"},\n  \"root\": {\"path\": \"rootfs\", \"readonly\": true}\n}"
+        }
+      ]
+    },
+    {
+      "id": "guided-practice",
+      "title": "Geführte Praxis und externe Beobachtung",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "code",
+          "code": "sudo ctr namespaces list\nsudo ctr -n k8s.io containers list\nsudo ctr -n k8s.io tasks list\nps -eo pid,ppid,comm",
+          "caption": "Lesende Vergleiche. ctr ist ein Diagnoseclient für containerd; keine Kubernetes-Ressourcen manuell darüber löschen oder erzeugen.",
+          "language": "bash",
+          "execution": "external"
+        },
+        {
+          "type": "text",
+          "text": "Notiere im eigenen Lab Beobachtung, betroffenen Kontext und Zeitpunkt. Die externen Befehle sind keine Voraussetzung für einen Browsernachweis; dieser bewertet ausschließlich die folgende Modellaufgabe."
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "tier": "practice",
+          "title": "Geführte Zuordnung",
+          "prompt": "Ordne die Beobachtungen ihrer technischen Erklärung zu. Vergleiche anschließend deine Begründung.",
+          "hint": "Trenne Mechanismus, beobachteten Zustand und Zuständigkeit.",
+          "solution": "Definition sichtbar, Task fehlt Metadaten und Ausführung separat prüfen. Registry-Download wird gebraucht Höhere Image-Verwaltung statt runc allein nutzen. Containerd-Namespace k8s.io Interne Gruppierung, kein Kubernetes-API-Namespace.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Jede Beobachtung braucht die passende Ursache.",
+            "options": [
+              "Metadaten und Ausführung separat prüfen.",
+              "Höhere Image-Verwaltung statt runc allein nutzen.",
+              "Interne Gruppierung, kein Kubernetes-API-Namespace."
+            ],
+            "items": [
+              {
+                "prompt": "Definition sichtbar, Task fehlt",
+                "answer": "Metadaten und Ausführung separat prüfen."
+              },
+              {
+                "prompt": "Registry-Download wird gebraucht",
+                "answer": "Höhere Image-Verwaltung statt runc allein nutzen."
+              },
+              {
+                "prompt": "Containerd-Namespace k8s.io",
+                "answer": "Interne Gruppierung, kein Kubernetes-API-Namespace."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Isolation folgt aus mehreren Schichten"
+        },
+        {
+          "type": "text",
+          "text": "Die OCI-Konfiguration verbindet Mechanismen aus Modul 01: Namespaces steuern Sicht, cgroups Ressourcen, Capabilities und weitere Regeln Berechtigungen. Root-Dateisystem und Mounts bestimmen zusätzlich Dateizugriff. Ein Container ist damit nicht allein deshalb sicher, weil runc beteiligt ist. Für Fehleranalyse hilft die Grenze: War das Image verfügbar, die Konfiguration gültig, der Task erzeugt und der Prozess tatsächlich gestartet?"
+        },
+        {
+          "type": "task",
+          "id": "diagnosis",
+          "tier": "deep-dive",
+          "title": "Eigenständige Fehleranalyse",
+          "prompt": "Erhebe Belege in selbst gewählter Reihenfolge. Leite Ursache und passende Korrektur ab. Ein unabhängiger Nachweis entsteht im Challenge-Modus ohne aufgedeckte Hilfe.",
+          "hint": "Beziehe alle Modellbefunde ein und schließe Erklärungen aus, die einer Beobachtung widersprechen.",
+          "solution": "Die Fallbegründung erklärt den Zusammenhang zwischen Befunden und Ursache.",
+          "verification": {
+            "kind": "diagnosis",
+            "caseId": "container-runtime"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "runc verarbeitet primär …",
+              "answers": [
+                "OCI-Runtime-Konfiguration und Prozessstart",
+                "Kubernetes-Service-Selektoren",
+                "Registry-Tags als Clusterpolicy"
+              ],
+              "correct": 0,
+              "explanation": "OCI-Runtime-Konfiguration und Prozessstart. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q2",
+              "prompt": "Was beweist ein Container-Metadateneintrag nicht?",
+              "answers": [
+                "Eine gespeicherte Definition",
+                "Einen laufenden Task",
+                "Eine containerd-Ressource"
+              ],
+              "correct": 1,
+              "explanation": "Einen laufenden Task. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q3",
+              "prompt": "Der Shim gehört zur …",
+              "answers": [
+                "etcd-MVCC",
+                "API-Admission",
+                "Runtime-Integration"
+              ],
+              "correct": 2,
+              "explanation": "Runtime-Integration. Die technischen Abschnitte erklären die Abgrenzung."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "containerd Runtime v2",
+      "url": "https://containerd.io/docs/2.4/runtime-v2/"
+    },
+    {
+      "title": "containerd getting started",
+      "url": "https://containerd.io/docs/2.4/getting-started/"
+    },
+    {
+      "title": "OCI Bundle 1.2.1",
+      "url": "https://github.com/opencontainers/runtime-spec/blob/v1.2.1/bundle.md"
+    },
+    {
+      "title": "OCI config 1.2.1",
+      "url": "https://github.com/opencontainers/runtime-spec/blob/v1.2.1/config.md"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

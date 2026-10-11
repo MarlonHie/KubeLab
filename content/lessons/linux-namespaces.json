@@ -1,0 +1,240 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "linux-namespaces",
+  "moduleId": "01",
+  "title": "Namespaces und sichtbare Ressourcen",
+  "description": "PID-, Mount-, Network- und User-Namespaces voneinander abgrenzen.",
+  "category": "LINUX FUNDAMENTALS",
+  "level": "Deep Dive",
+  "duration": 30,
+  "goals": [
+    "PID-, Mount-, Network- und User-Namespaces voneinander abgrenzen.",
+    "Befunde vor einer Korrektur erheben und alternative Ursachen ausschließen"
+  ],
+  "sections": [
+    {
+      "id": "concept",
+      "title": "Technischer Zusammenhang",
+      "navLabel": "Grundlagen",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Isolation betrifft eine konkrete Sicht"
+        },
+        {
+          "type": "text",
+          "text": "Ein Namespace isoliert ausgewählte Kernel-Ressourcen, nicht pauschal alle Eigenschaften eines Prozesses. Zwei Prozesse können denselben Network-Namespace und zugleich verschiedene Mount-Namespaces benutzen. Für Teamboard heißt das: Eine gemeinsame Netzwerksicht erzwingt kein identisches Dateisystem. /proc/PID/ns enthält Verweise, mit denen sich die jeweiligen Namespace-Zugehörigkeiten vergleichen lassen."
+        },
+        {
+          "type": "heading",
+          "text": "PID und Mount separat verstehen"
+        },
+        {
+          "type": "text",
+          "text": "PID-Namespaces bilden eine Hierarchie: Ein Prozess kann aus einem übergeordneten Kontext unter einer anderen PID sichtbar sein. Die eigene procfs-Einbindung beeinflusst, welche Prozesssicht Werkzeuge liefern. Ein Mount-Namespace trennt Mount-Tabellen; vorhandene Propagationseinstellungen können trotzdem relevant sein. Ein neues Namespace-Objekt macht eine bestehende Datei nicht automatisch schreibgeschützt."
+        },
+        {
+          "type": "heading",
+          "text": "Netz und Benutzeridentität"
+        },
+        {
+          "type": "text",
+          "text": "Network-Namespaces besitzen unter anderem eigene Interfaces, Routingtabellen und Port-Räume. User-Namespaces ordnen Benutzer- und Gruppen-IDs zwischen Kontexten zu; UID 0 darin muss nicht Host-root entsprechen. Capabilities und ihre Gültigkeit im jeweiligen User-Namespace bleiben wichtig. Namespaces ersetzen deshalb weder Ressourcenlimits noch eine vollständige Sicherheitskonfiguration."
+        },
+        {
+          "type": "table",
+          "caption": "Beobachtung und technische Bedeutung",
+          "headers": [
+            "Begriff / Befund",
+            "Bedeutung",
+            "Grenze der Aussage"
+          ],
+          "rows": [
+            [
+              "PID",
+              "Sicht auf Prozessnummern",
+              "Kein CPU-Limit"
+            ],
+            [
+              "Mount",
+              "Sicht auf Mounts und deren Propagation",
+              "Nicht automatisch read-only"
+            ],
+            [
+              "Network",
+              "Interfaces, Routes und Sockets",
+              "Keine automatisch funktionierende Verbindung"
+            ],
+            [
+              "User",
+              "Abbildung von IDs und Berechtigungsgrenzen",
+              "Nicht gleich globale Host-Rechte"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guided-practice",
+      "title": "Geführte Praxis und externe Beobachtung",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "code",
+          "code": "lsns\nreadlink /proc/self/ns/pid\nreadlink /proc/self/ns/net\ncat /proc/self/uid_map",
+          "caption": "Lesende Vergleiche. Für fremde Prozesse können Berechtigungen und procfs-Einstellungen die Sicht einschränken.",
+          "language": "bash",
+          "execution": "external"
+        },
+        {
+          "type": "text",
+          "text": "Notiere im eigenen Lab Beobachtung, betroffenen Kontext und Zeitpunkt. Die externen Befehle sind keine Voraussetzung für einen Browsernachweis; dieser bewertet ausschließlich die folgende Modellaufgabe."
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "tier": "practice",
+          "title": "Geführte Zuordnung",
+          "prompt": "Ordne die Beobachtungen ihrer technischen Erklärung zu. Vergleiche anschließend deine Begründung.",
+          "hint": "Trenne Mechanismus, beobachteten Zustand und Zuständigkeit.",
+          "solution": "Gleiche net-ID, unterschiedliche mnt-ID Gemeinsame Netzsicht bei unterschiedlicher Mount-Sicht. UID 0 im User-Namespace ID-Abbildung und Capability-Kontext prüfen. CPU-Verbrauch trotz Isolation Ressourcenlimits sind Aufgabe von cgroups.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Jede Beobachtung braucht die passende Ursache.",
+            "options": [
+              "Gemeinsame Netzsicht bei unterschiedlicher Mount-Sicht.",
+              "ID-Abbildung und Capability-Kontext prüfen.",
+              "Ressourcenlimits sind Aufgabe von cgroups."
+            ],
+            "items": [
+              {
+                "prompt": "Gleiche net-ID, unterschiedliche mnt-ID",
+                "answer": "Gemeinsame Netzsicht bei unterschiedlicher Mount-Sicht."
+              },
+              {
+                "prompt": "UID 0 im User-Namespace",
+                "answer": "ID-Abbildung und Capability-Kontext prüfen."
+              },
+              {
+                "prompt": "CPU-Verbrauch trotz Isolation",
+                "answer": "Ressourcenlimits sind Aufgabe von cgroups."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Internals & Failure Analysis",
+      "navLabel": "Internals",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Ein Netz-Namespace ist noch kein Netzwerk"
+        },
+        {
+          "type": "text",
+          "text": "Nach dem Anlegen eines isolierten Kontexts fehlen unter Umständen die benötigten Interface-Zustände, Adressen und Routen. Ein veth-Paar verbindet zwei virtuelle Schnittstellen; Routing, Bridge-Anbindung und Regeln müssen separat passen. nsenter wechselt in bestehende Namespaces und ist ein Diagnosewerkzeug mit weitreichenden Wirkungen. Vor jedem Einsatz müssen Zielprozess, Namespace-Art und Berechtigung eindeutig sein. Die Browseraufgabe verändert keine Host-Namespaces."
+        },
+        {
+          "type": "task",
+          "id": "diagnosis",
+          "tier": "deep-dive",
+          "title": "Eigenständige Fehleranalyse",
+          "prompt": "Erhebe Belege in selbst gewählter Reihenfolge. Leite Ursache und passende Korrektur ab. Ein unabhängiger Nachweis entsteht im Challenge-Modus ohne aufgedeckte Hilfe.",
+          "hint": "Beziehe alle Modellbefunde ein und schließe Erklärungen aus, die einer Beobachtung widersprechen.",
+          "solution": "Die Fallbegründung erklärt den Zusammenhang zwischen Befunden und Ursache.",
+          "verification": {
+            "kind": "diagnosis",
+            "caseId": "linux-namespaces"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Welcher Mechanismus begrenzt CPU?",
+              "answers": [
+                "PID-Namespace",
+                "cgroup-Controller",
+                "Mount-Tabelle"
+              ],
+              "correct": 1,
+              "explanation": "cgroup-Controller. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q2",
+              "prompt": "Gleicher Network-Namespace bedeutet …",
+              "answers": [
+                "gleicher Port-Raum",
+                "identische Mounts",
+                "immer Host-root"
+              ],
+              "correct": 0,
+              "explanation": "gleicher Port-Raum. Die technischen Abschnitte erklären die Abgrenzung."
+            },
+            {
+              "id": "q3",
+              "prompt": "Was zeigt uid_map?",
+              "answers": [
+                "HTTP-Routing",
+                "Image-Layer",
+                "Benutzer-ID-Abbildung"
+              ],
+              "correct": 2,
+              "explanation": "Benutzer-ID-Abbildung. Die technischen Abschnitte erklären die Abgrenzung."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Namespaces",
+      "url": "https://man7.org/linux/man-pages/man7/namespaces.7.html"
+    },
+    {
+      "title": "PID namespaces",
+      "url": "https://man7.org/linux/man-pages/man7/pid_namespaces.7.html"
+    },
+    {
+      "title": "User namespaces",
+      "url": "https://man7.org/linux/man-pages/man7/user_namespaces.7.html"
+    },
+    {
+      "title": "Network namespaces",
+      "url": "https://man7.org/linux/man-pages/man7/network_namespaces.7.html"
+    },
+    {
+      "title": "Namespaces · Handbuch-Quelltext",
+      "url": "https://github.com/mkerrisk/man-pages/blob/master/man7/namespaces.7"
+    },
+    {
+      "title": "PID namespaces · Handbuch-Quelltext",
+      "url": "https://github.com/mkerrisk/man-pages/blob/master/man7/pid_namespaces.7"
+    },
+    {
+      "title": "User namespaces · Handbuch-Quelltext",
+      "url": "https://github.com/mkerrisk/man-pages/blob/master/man7/user_namespaces.7"
+    },
+    {
+      "title": "Network namespaces · Handbuch-Quelltext",
+      "url": "https://github.com/mkerrisk/man-pages/blob/master/man7/network_namespaces.7"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

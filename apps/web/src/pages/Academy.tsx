@@ -14,6 +14,9 @@ import {
   curriculum,
   architectureLessons,
   practiceTasks,
+  basicPracticeTasks,
+  deepDiveTasks,
+  deepDiveMastered,
   practiceMastered,
 } from "../../../../packages/lesson-engine/src";
 import { useProgress } from "../stores/progress";
@@ -40,7 +43,7 @@ export function Academy() {
       <Heading
         eyebrow="ACADEMY · CONTENT FIRST"
         title="Kubernetes von innen verstehen."
-        description="Ein Lehrplan mit 16 Themenbereichen. Unser Referenzmodul: Kubernetes Architecture."
+        description="Ein Lehrplan mit 16 Themenbereichen. Linux, Container und Kubernetes Architecture mit getrennten Lernabschlüssen."
       />
       <section className="reference-module panel">
         <div>
@@ -60,7 +63,7 @@ export function Academy() {
                 ? "Im Referenzmodul weiterlernen"
                 : "Referenzmodul starten"}
             </Link>
-            <Badge color="green">Theorie: {completed} / 9</Badge>
+            <Badge color="green">Grundlagen: {completed} / 9</Badge>
             <Badge color="blue">
               Praxis:{" "}
               {
@@ -68,6 +71,11 @@ export function Academy() {
                   practiceMastered(l, p.practiceCompleted),
                 ).length
               }{" "}
+              / 9
+            </Badge>
+            <Badge color="gray">
+              Deep Dive:{" "}
+              {architectureLessons.filter((l) => deepDiveMastered(l, p)).length}{" "}
               / 9
             </Badge>
           </div>
@@ -141,14 +149,20 @@ export function Academy() {
               <p>{l.description}</p>
               <p className="lesson-card-progress">
                 {p.theoryCompleted.includes(l.id)
-                  ? "Theorie verstanden"
-                  : "Theorie offen"}{" "}
+                  ? "Grundlagen abgeschlossen"
+                  : "Grundlagen offen"}{" "}
                 ·{" "}
                 {practiceMastered(l, p.practiceCompleted)
-                  ? "Praxis gemeistert"
-                  : practiceTasks(l).length
+                  ? "Praxis abgeschlossen"
+                  : basicPracticeTasks(l).length
                     ? "Praxis offen"
                     : "Praxis nicht automatisch geprüft"}
+                {" · "}
+                {deepDiveMastered(l, p)
+                  ? "Deep Dive gemeistert"
+                  : deepDiveTasks(l).length
+                    ? "Deep Dive offen"
+                    : "Deep Dive geplant"}
               </p>
               <span className="subtle">
                 <Clock3 size={14} /> {l.duration} Min.
@@ -232,7 +246,7 @@ export function Academy() {
                 {m.id === "03"
                   ? "Referenzmodul"
                   : count
-                    ? "Einführung"
+                    ? `${count} Lektionen`
                     : "Geplant"}
               </Badge>
             </div>

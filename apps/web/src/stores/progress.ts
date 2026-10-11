@@ -1,13 +1,15 @@
 import {
   lessons,
   practiceTasks,
+  deepDiveTasks,
   practiceKey,
 } from "../../../../packages/lesson-engine/src";
 import { create } from "zustand";
 import { get, set } from "idb-keyval";
 export interface Progress {
-  version: 3;
+  version: 4;
   theoryCompleted: string[];
+  independentCompleted: string[];
   practiceCompleted: string[];
   checkpoints: number[];
   challenge: boolean;
@@ -16,8 +18,9 @@ export interface Progress {
   theme: "light" | "dark";
 }
 const defaults: Progress = {
-  version: 3,
+  version: 4,
   theoryCompleted: [],
+  independentCompleted: [],
   practiceCompleted: [],
   checkpoints: [],
   challenge: false,
@@ -29,6 +32,9 @@ const lessonIds = new Set(lessons.map((l) => l.id));
 const taskIds = new Set(
   lessons.flatMap((l) => practiceTasks(l).map((t) => practiceKey(l.id, t.id))),
 );
+const independentIds = new Set(
+  lessons.flatMap((l) => deepDiveTasks(l).map((t) => practiceKey(l.id, t.id))),
+);
 const validIds = (value: unknown, allowed: Set<string>): value is string[] =>
   Array.isArray(value) &&
   value.every((id) => typeof id === "string" && allowed.has(id));
@@ -39,8 +45,15 @@ export function parseProgress(value: unknown): Progress {
   const legacy = v.version === 1 || v.version === 2;
   const theory = legacy ? v.completed : v.theoryCompleted;
   if (
-    (!legacy && v.version !== 3) ||
+    (!legacy && v.version !== 3 && v.version !== 4) ||
     !validIds(theory, lessonIds) ||
+    (v.version === 4 &&
+      (!validIds(v.independentCompleted, independentIds) ||
+        !(v.independentCompleted as string[]).every(
+          (id) =>
+            Array.isArray(v.practiceCompleted) &&
+            v.practiceCompleted.includes(id),
+        ))) ||
     (!legacy && !validIds(v.practiceCompleted, taskIds)) ||
     !Array.isArray(v.checkpoints) ||
     !v.checkpoints.every((x) => Number.isInteger(x) && x >= 0 && x < 7) ||
@@ -55,10 +68,12 @@ export function parseProgress(value: unknown): Progress {
     !["light", "dark"].includes(v.theme as string)
   )
     throw new Error(
-      "Ungültige KubeLab-Fortschrittsdatei (Version 1, 2 oder 3 erwartet).",
+      "Ungültige KubeLab-Fortschrittsdatei (Version 1, 2, 3 oder 4 erwartet).",
     );
   return {
-    version: 3,
+    version: 4,
+    independentCompleted:
+      v.version === 4 ? [...new Set(v.independentCompleted as string[])] : [],
     theoryCompleted: [...new Set(theory)].filter(
       (id) => !(v.version === 1 && id === "control-plane"),
     ),
@@ -126,7 +141,7 @@ export async function hydrate() {
     if (data !== undefined) {
       const migrated = parseProgress(data);
       useProgress.setState(migrated);
-      if (data.version !== 3) save(migrated);
+      if (data.version !== 4) save(migrated);
       else useProgress.setState({ saveStatus: "saved" });
     } else useProgress.setState({ saveStatus: "saved" });
   } catch {

@@ -35,8 +35,8 @@ function strings(value: unknown): string[] {
 }
 const example = () => structuredClone(architectureLessons[0]);
 describe("declarative lesson schema and lossless migration", () => {
-  it("keeps the existing 13 lessons and validates every document", () => {
-    expect(lessons).toHaveLength(13);
+  it("validates all 22 lessons including preserved introductions and validates every document", () => {
+    expect(lessons).toHaveLength(22);
     expect(parseCatalog(lessons)).toEqual(lessons);
   });
   it.each(original.map((l) => [l.id, l] as const))(
@@ -130,8 +130,8 @@ describe("theory and practice assessments", () => {
       task.verification.items.map((i, n) => [n, i.answer]),
     );
     expect(checkPractice(task, answers, []).every((c) => c.passed)).toBe(true);
-    expect(practiceTasks(lesson)).toHaveLength(2);
-    expect(practiceMastered(lesson, ["cluster-basics/practice"])).toBe(false);
+    expect(practiceTasks(lesson)).toHaveLength(3);
+    expect(practiceMastered(lesson, ["cluster-basics/practice"])).toBe(true);
     expect(
       practiceMastered(lesson, [
         "cluster-basics/practice",
@@ -199,7 +199,8 @@ describe("version 3 progress migration", () => {
   it("preserves v2 theory and unrelated state without inventing practice", () => {
     const p = parseProgress(v2);
     expect(p).toEqual({
-      version: 3,
+      version: 4,
+      independentCompleted: [],
       theoryCompleted: v2.completed,
       practiceCompleted: [],
       checkpoints: v2.checkpoints,
@@ -227,11 +228,11 @@ describe("version 3 progress migration", () => {
   });
   it.each([
     { practiceCompleted: ["etcd/expert"] },
-    { practiceCompleted: ["linux/practice"] },
+    { practiceCompleted: ["linux/diagnosis"] },
     { practiceCompleted: ["unknown/practice"] },
     { theoryCompleted: ["unknown"] },
     { practiceCompleted: undefined },
-    { version: 4 },
+    { version: 5 },
   ])("rejects corrupt or uncheckable completion", (patch) =>
     expect(() => parseProgress({ ...parseProgress(v2), ...patch })).toThrow(),
   );

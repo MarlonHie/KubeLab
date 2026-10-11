@@ -7,7 +7,7 @@ test("learning completion survives reload, export, reset, and import", async ({
   await page.getByRole("button", { name: "Wissenscheck auswerten" }).click();
   await expect(
     page.getByTestId("knowledge-check").getByRole("status"),
-  ).toContainText("Theorie verstanden");
+  ).toContainText("Grundlagen abgeschlossen");
   await expect(page.getByTestId("progress-save-status")).toHaveText(
     "Lernstand lokal gespeichert",
   );
@@ -20,14 +20,18 @@ test("learning completion survives reload, export, reset, and import", async ({
   await page.getByRole("button", { name: "Lernstand zurücksetzen" }).click();
   await page.getByRole("button", { name: "Ja, zurücksetzen" }).click();
   await expect(
-    page.getByText("0 Theorieabschlüsse · 0 Praxisaufgaben · 0 Lab-Schritte"),
+    page.getByText(
+      "0 Grundlagenabschlüsse · 0 Praxisaufgaben · 0 Lab-Schritte",
+    ),
   ).toBeVisible();
   await page.getByLabel("Lernstand importieren").setInputFiles(file!);
   await expect(page.getByRole("status")).toContainText(
     "erfolgreich importiert",
   );
   await expect(
-    page.getByText("1 Theorieabschlüsse · 0 Praxisaufgaben · 0 Lab-Schritte"),
+    page.getByText(
+      "1 Grundlagenabschlüsse · 0 Praxisaufgaben · 0 Lab-Schritte",
+    ),
   ).toBeVisible();
 });
 test("Monaco applies manifests and terminal scales resources", async ({

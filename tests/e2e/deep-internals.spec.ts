@@ -55,8 +55,10 @@ for (const [lesson, model, id, labels] of [
     await expect(task.getByRole("status")).toHaveText(
       "Praxisaufgabe erfolgreich geprüft.",
     );
-    await expect(page.getByTestId("theory-status")).toHaveText("Theorie offen");
-    await expect(page.getByTestId("practice-count")).toContainText("1 von 3");
+    await expect(page.getByTestId("theory-status")).toHaveText(
+      "Grundlagen offen",
+    );
+    await expect(page.getByTestId("practice-count")).toContainText("0 von 1");
     await expect(page.getByTestId("progress-save-status")).toHaveText(
       "Lernstand lokal gespeichert",
     );
@@ -69,7 +71,7 @@ for (const [lesson, model, id, labels] of [
       "Prüfpfad 0/",
     );
   });
-test("advanced transfer contributes to mastery, collapse preserves the current answers", async ({
+test("guided transfer preserves answers on collapse and leaves independent mastery open", async ({
   page,
 }) => {
   const lesson = architectureLessons.find((l) => l.id === "cluster-basics")!;
@@ -78,7 +80,7 @@ test("advanced transfer contributes to mastery, collapse preserves the current a
   for (const task of practiceTasks(lesson)) {
     const block = page.getByTestId(`practice-${task.id}`),
       v = task.verification;
-    if (v.kind !== "matching") throw Error("fixture");
+    if (v.kind !== "matching") continue;
     for (const [i, item] of v.items.entries())
       await block.locator("select").nth(i).selectOption(item.answer);
     if (task.id === "internals-transfer") {
@@ -93,9 +95,11 @@ test("advanced transfer contributes to mastery, collapse preserves the current a
     await block.getByRole("button", { name: "Praxisaufgabe prüfen" }).click();
   }
   await expect(page.getByTestId("practice-status")).toHaveText(
-    "Praxis gemeistert",
+    "Praxis abgeschlossen",
   );
-  await expect(page.getByTestId("theory-status")).toHaveText("Theorie offen");
+  await expect(page.getByTestId("theory-status")).toHaveText(
+    "Grundlagen offen",
+  );
 });
 test("every internals section opens on mobile without page overflow or runtime errors", async ({
   page,

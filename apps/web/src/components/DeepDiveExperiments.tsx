@@ -14,8 +14,10 @@ export function DeepDiveExperiment({
   kind,
   actions,
   onAction,
+  mode = "guided",
 }: {
   kind: DeepModel;
+  mode?: "guided" | "challenge";
   actions: string[];
   onAction: (action: string | null) => void;
 }) {
@@ -168,16 +170,18 @@ export function DeepDiveExperiment({
       <p role="status" className="notice">
         {state.message}
       </p>
-      <p
-        className={invalid ? "result-fail" : "subtle"}
-        data-testid="challenge-guide"
-      >
-        {invalid
-          ? "Vom Prüfpfad abgewichen. Du kannst weiter erkunden; für den Praxisnachweis bitte zurücksetzen."
-          : count === steps.length
-            ? "Prüfpfad vollständig. Bestätige die Praxisaufgabe unter dem Experiment."
-            : `Prüfpfad ${count}/${steps.length} · Nächster Schritt: ${labels[steps[count].action]} — ${steps[count].label}`}
-      </p>
+      {mode === "guided" && (
+        <p
+          className={invalid ? "result-fail" : "subtle"}
+          data-testid="challenge-guide"
+        >
+          {invalid
+            ? "Vom Prüfpfad abgewichen. Du kannst weiter erkunden; für den Praxisnachweis bitte zurücksetzen."
+            : count === steps.length
+              ? "Prüfpfad vollständig. Bestätige die Praxisaufgabe unter dem Experiment."
+              : `Prüfpfad ${count}/${steps.length} · Nächster Schritt: ${labels[steps[count].action]} — ${steps[count].label}`}
+        </p>
+      )}
       <p className="model-limit">
         <strong>Modellgrenze:</strong>{" "}
         {raft

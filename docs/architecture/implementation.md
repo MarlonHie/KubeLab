@@ -1,10 +1,10 @@
-# KubeLab 0.2.2 · Content First und Architecture Internals
+# KubeLab 0.3.0 · Lernstufen und Fundamentals
 
 Die React-/TypeScript-SPA wird mit Vite ausschließlich statisch gebaut. HashRouter und relative Assets unterstützen GitHub Pages unter einer Repository-Unterseite. Kein Server, Tracking, Konto oder Clusterzugriff.
 
 ## Aufbau
 
-- `content/lessons/*.json`: alle 13 vorhandenen Lektionen als deklarative Dokumente. Neun Architekturlektionen mit 27 Fragen sowie vier Einführungen; keine zusätzlichen Module in diesem Update.
+- `content/lessons/*.json`: 22 deklarative Lektionen: 6 Linux, 5 Container, 9 Architektur, 2 Networking-Einführungen.
 - `packages/lesson-engine`: JSON Schema, Blocktypen, semantische Inhaltsprüfung, Aufgaben-/Quizprüfung, Katalog und Lehrplan mit 16 Themenbereichen. Geplante Module gelten nicht als fertig.
 - `apps/web/src/pages/LessonPage.tsx`: eine gemeinsame Lernansicht für alle Module. Eine nach Lektions-ID erneuerte Sitzung setzt Antworten, Feedback, Zuordnungen und Modelle zurück. `LessonBlocks.tsx` stellt die geprüften Inhalte dar.
 - `apps/web/src/components/ArchitectureExperiments.tsx`: Architektur, API, Quorum, Scheduling, Runtime, Request-Ablauf und Fehleranalyse. `Reconciliation.tsx` zeigt einen einfachen Regelkreis. Jedes Modell beschreibt seine Grenzen.
@@ -17,7 +17,7 @@ Die React-/TypeScript-SPA wird mit Vite ausschließlich statisch gebaut. HashRou
 
 ## Datenmigration
 
-Der bestehende IndexedDB-Schlüssel `kubelab-progress` verwendet Schema-Version 3. Version-1- und Version-2-Stände bleiben importierbar. Alte `completed`-Einträge werden zu `theoryCompleted`; Praxis beginnt ohne unbelegte Erfolge. Die frühere Version-1-Ausnahme für den neu erarbeiteten Control-Plane-Wissenscheck bleibt bestehen. Andere Lektionen, Theme, Checkpoints und Challenge-Erfolge bleiben erhalten. `practiceCompleted` speichert geprüfte Aufgaben als `Lektions-ID/Aufgaben-ID`. Reflexionsfragen erhalten keinen automatischen Abschluss. Die Oberfläche zeigt Theorie und Praxis getrennt.
+Der bestehende IndexedDB-Schlüssel `kubelab-progress` verwendet Schema-Version 4. Version-1-, Version-2- und Version-3-Stände bleiben importierbar. Alte `completed`-Einträge werden zu `theoryCompleted`; Praxis beginnt ohne unbelegte Erfolge. Die frühere Version-1-Ausnahme für den neu erarbeiteten Control-Plane-Wissenscheck bleibt bestehen. Andere Lektionen, Theme, Checkpoints und Challenge-Erfolge bleiben erhalten. `practiceCompleted` speichert geprüfte Aufgaben als `Lektions-ID/Aufgaben-ID`. Reflexionsfragen erhalten keinen automatischen Abschluss. `independentCompleted` enthält nur ungestützte Deep-Dive-Nachweise aus dem Challenge-Modus. Alte Nachweise werden nicht zu unabhängigen Prüfungen aufgewertet. Die Oberfläche zeigt Grundlagen, grundlegende Praxis und optionalen Deep Dive.
 
 Das Lab verwendet weiterhin separat `kubelab-lab-v1` mit YAML-Entwurf, angewendetem Cluster, letztem angewendetem YAML, Szenario und letzter Ausgabe. Ein Fortschrittsreset löscht kein Lab. Beide Formate haben getrennte Sicherungen. Details und Autorenregeln stehen in [lesson-authoring.md](lesson-authoring.md).
 
@@ -35,6 +35,10 @@ Der aktuelle Ausbauplan steht in [content-first.md](content-first.md). Der urspr
 
 ## Zustandsbasierte Vertiefung
 
-`deep-labs.ts` enthält reine Raft- und Scheduler-Lehrmodelle. `challenges.ts` rekonstruiert Zustände aus einer vollständigen Aktionshistorie und prüft geordnete Vor-/Nachbedingungen. Die UI benutzt dasselbe Replay; beliebige Ereignismengen reichen für die neuen Challenges nicht aus. Native Details-Abschnitte behalten beim Einklappen ihre Antworten und Modellhistorie. Neue Nachweise verwenden eigene Aufgaben-IDs; das bestehende Fortschrittsformat 3 bleibt kompatibel. Ein Rücksprung auf alte App-Versionen kann deren Validator an unbekannten neuen Aufgaben-IDs scheitern lassen; Exporte daher mit der aktuellen Version importieren.
+`deep-labs.ts` enthält reine Raft- und Scheduler-Lehrmodelle. `challenges.ts` rekonstruiert Zustände aus einer vollständigen Aktionshistorie und prüft geordnete Vor-/Nachbedingungen. Die UI benutzt dasselbe Replay; beliebige Ereignismengen reichen für die neuen Challenges nicht aus. Native Details-Abschnitte behalten beim Einklappen ihre Antworten und Modellhistorie. Neue Nachweise verwenden eigene Aufgaben-IDs; Fortschrittsformat 3 wird verlustfrei auf Format 4 migriert. Ein Rücksprung auf alte App-Versionen kann deren Validator an unbekannten neuen Aufgaben-IDs scheitern lassen; Exporte daher mit der aktuellen Version importieren.
 
 Die Tests sichern alle Abschnitte aus 0.2.1 unverändert, prüfen Log-/Commit-Invarianten und Fehlerpfade sowie alte und neue Fortschrittsnachweise. Fachumfang und Quellenprüfung: [Modul-03-Gap-Analyse](../content/module-03-gap-analysis.md).
+
+## Eigenständige Diagnose
+
+`diagnosis.ts` enthält 18 fest verfasste Fälle und einen reinen Prüfer für Belege, Ursache und Korrektur. Es gibt keine vorgeschriebene Untersuchungsreihenfolge. Die geführten Raft-/Scheduler-Übungen zählen als optionale Exploration; der Challenge-Modus verwendet eigenständige Diagnosen statt einer versteckten festen Aktionsfolge. Hinweise oder Lösungen markieren den laufenden Versuch als unterstützt. Neue Stufen werden überall aus den gleichen Funktionen `basicPracticeTasks`, `practiceMastered`, `deepDiveTasks` und `deepDiveMastered` abgeleitet.

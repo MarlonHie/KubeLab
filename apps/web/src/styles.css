@@ -3468,3 +3468,37 @@ input[type="checkbox"] {
 .deep-experiment {
   min-width: 0;
 }
+
+.learning-mode {
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.learning-mode [aria-pressed="true"] {
+  border-color: var(--blue);
+  font-weight: 800;
+}
+.diagnostic-workbench {
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 1rem;
+  min-width: 0;
+}
+.diagnostic-workbench .notice {
+  overflow-wrap: anywhere;
+}
+
+.page-heading > div:first-child {
+  min-width: 0;
+}
+.page-heading h1 {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .page-heading {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lesson-progress-badges {
+    width: 100%;
+  }
+}
