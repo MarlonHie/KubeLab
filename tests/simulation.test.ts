@@ -104,14 +104,16 @@ describe("Progress import", () => {
     theme: "light",
   };
   it("accepts versioned data and removes duplicate IDs", () => {
-    expect(parseProgress({ ...valid, completed: ["linux", "linux"] })).toEqual(
-      valid,
-    );
+    expect(parseProgress({ ...valid, completed: ["linux", "linux"] })).toEqual({
+      ...valid,
+      version: 2,
+      completedChallenges: [],
+    });
   });
   it.each([
     null,
     {},
-    { ...valid, version: 2 },
+    { ...valid, version: 99 },
     { ...valid, completed: ["unknown"] },
     { ...valid, checkpoints: [99] },
     { ...valid, theme: "system" },

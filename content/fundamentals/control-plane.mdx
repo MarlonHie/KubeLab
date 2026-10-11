@@ -23,3 +23,51 @@ Verfolge im Visualizer den Weg vom Deployment zu den Pods. Variiere anschließen
 Prüfe im echten Cluster zuerst `kubectl describe pod NAME`. Unzureichende Ressourcen, nicht passende Node-Selektoren, Taints oder ein noch nicht gebundenes Volume können Scheduling verhindern. Der Scheduler schafft selbst keine zusätzliche Rechenleistung.
 
 [Kubernetes-Komponenten](https://kubernetes.io/docs/concepts/overview/components/)
+
+## Was nach `kubectl apply` tatsächlich passiert
+
+Ein erfolgreiches `apply` bedeutet zunächst, dass die API den gewünschten Zustand angenommen hat. Es bedeutet nicht, dass bereits ein Container läuft. Die folgenden Schritte passieren verteilt und nicht als eine einzige Transaktion:
+
+1. `kubectl` sendet eine API-Anfrage. Der API Server prüft Authentifizierung, Autorisierung, Schema und Admission-Regeln. Mutierende Admission kann Felder ergänzen; validierende Admission kann die Anfrage ablehnen.
+2. Der akzeptierte Deployment-Zustand wird über den API Server in etcd persistiert. Die Antwort an den Client ist keine Bereitschaftsgarantie.
+3. Der Deployment-Controller vergleicht Soll und Ist und erstellt oder aktualisiert ein ReplicaSet. Der ReplicaSet-Controller erzeugt die fehlenden Pod-Objekte.
+4. Der Scheduler beobachtet Pods ohne Node-Zuweisung, filtert geeignete Nodes, bewertet Kandidaten und schreibt eine Bindung über die API.
+5. kubelet sieht die Zuweisung, koordiniert Netzwerk und Volumes und lässt die Runtime Container starten. Statusmeldungen gelangen zurück zur API. Erst erfolgreiche Readiness-Prüfungen machen einen Pod für regulären Service-Verkehr bereit.
+
+Controller erhalten Änderungen über API-Watches und wiederholen ihre Regelkreise bei Bedarf. Sie müssen mit veralteten Beobachtungen, Konflikten und Wiederholungen umgehen können. Eine Watch ist kein direkter Aufruf vom API Server an den Controller, „jetzt genau diesen Container zu starten“.
+
+## Sollzustand, Status und Selbstheilung
+
+`spec.replicas: 3` ist dein Wunsch. `status.readyReplicas: 1` beschreibt eine Beobachtung. Wenn eine Instanz fehlt, erzeugt der ReplicaSet-Controller Ersatz; der Scheduler und kubelet übernehmen danach ihre jeweiligen Schritte. Kubernetes repariert dabei nicht automatisch einen Fehler in deinem Anwendungscode.
+
+Ein gelöschter einzelner Pod eines Deployments erscheint deshalb meist als neue Instanz wieder. Ein auf null skaliertes Deployment bleibt dagegen ohne Pods: Null ist dann der gewünschte Zustand. Diese Unterscheidung übst du im Operations-Szenario **Verschwundene Workloads**.
+
+## Fehler entlang der Zuständigkeitsgrenzen eingrenzen
+
+| Beobachtung | Zuerst prüfen | Zuständigkeit |
+| --- | --- | --- |
+| API liefert Forbidden | Benutzer, ServiceAccount, RBAC | API-Autorisierung |
+| Deployment existiert, Pods fehlen | ReplicaSets, Events, replicas | Controller und Admission |
+| Pod bleibt Pending | Events, Requests, Taints, Volumes | Scheduling oder Vorbereitung |
+| Pod hat Node, Container startet nicht | Pod-Events, Runtime, Image-Zugriff | kubelet und Runtime |
+| Pod läuft, Service liefert keine Antwort | Readiness, Selektor, EndpointSlices, Netzwerk | Workload und Datenpfad |
+
+**Im echten Cluster, externes Terminal:**
+
+```bash
+kubectl get deployments,replicasets,pods -o wide
+kubectl describe deployment hello-kubelab
+kubectl get events --sort-by=.metadata.creationTimestamp
+```
+
+Diese Befehle sind hier Diagnosebeispiele für eine echte Lab-VM; nicht alle werden im simulierten Browserterminal unterstützt.
+
+## etcd und Ausfälle
+
+etcd benötigt für Änderungen eine Mehrheit seiner Mitglieder. Drei etcd-Mitglieder können einen Ausfall tolerieren; zwei Ausfälle verlieren das Quorum. Drei Worker mit nur einer Control Plane machen die Control Plane nicht hochverfügbar. Bestehende Container können bei einer vorübergehend unerreichbaren API weiterlaufen, neue Platzierungen und Änderungen sind jedoch eingeschränkt.
+
+### Eigenständige Aufgabe
+
+Erkläre für jede dieser Störungen die betroffene Komponente: ungültiges Image, fehlende API-Berechtigung, unerfüllbarer CPU-Request und null gewünschte Replikate. Öffne danach den Visualizer deines gespeicherten Labs und ordne Deployment, Pods und Worker den Schritten oben zu.
+
+Vertiefung: [Controller-Regelkreise](https://kubernetes.io/docs/concepts/architecture/controller/), [Kubernetes API und Watches](https://kubernetes.io/docs/reference/using-api/api-concepts/), [etcd-Quorum](https://etcd.io/docs/v3.6/faq/).

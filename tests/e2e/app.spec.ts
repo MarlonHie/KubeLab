@@ -12,16 +12,16 @@ test("learning completion survives reload, export, reset, and import", async ({
   ).toBeVisible();
   await page.goto("/#/settings");
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Exportieren" }).click();
+  await page.getByRole("button", { name: "Exportieren", exact: true }).click();
   const file = await (await download).path();
   await page.getByRole("button", { name: "Lernstand zurücksetzen" }).click();
   await page.getByRole("button", { name: "Ja, zurücksetzen" }).click();
-  await expect(page.getByText("0 Module · 0 Lab-Schritte")).toBeVisible();
+  await expect(page.getByText("0 Lektionen · 0 Lab-Schritte")).toBeVisible();
   await page.getByLabel("Lernstand importieren").setInputFiles(file!);
   await expect(page.getByRole("status")).toContainText(
     "erfolgreich importiert",
   );
-  await expect(page.getByText("1 Module · 0 Lab-Schritte")).toBeVisible();
+  await expect(page.getByText("1 Lektionen · 0 Lab-Schritte")).toBeVisible();
 });
 test("Monaco applies manifests and terminal scales resources", async ({
   page,
@@ -30,16 +30,21 @@ test("Monaco applies manifests and terminal scales resources", async ({
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/#/operations");
   await expect(page.locator(".monaco-editor")).toBeVisible();
-  await page.getByRole("button", { name: "Anwenden", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Simuliert anwenden", exact: true })
+    .click();
   await expect(page.locator(".lab-graph .badge")).toHaveText("2 Pods");
   await page
     .getByLabel("Simulierten Befehl eingeben")
     .fill("kubectl scale deployment hello-kubelab --replicas=3");
-  await page.getByRole("button", { name: "Befehl ausführen" }).click();
+  await page
+    .getByRole("button", { name: "Simulierten Befehl ausführen" })
+    .click();
   await expect(page.locator(".lab-graph .badge")).toHaveText("3 Pods");
   await page.getByRole("button", { name: "Ressourcen", exact: true }).click();
   await expect(page.locator(".resource-list")).toContainText("hello-kubelab");
   await page.getByRole("button", { name: "Challenge starten" }).click();
+  await page.getByRole("button", { name: "Lab ersetzen", exact: true }).click();
   await expect(page.locator(".validation-status")).toContainText(
     "selector.matchLabels",
   );
@@ -71,7 +76,7 @@ test("mobile navigation and dark mode remain usable without overflow", async ({
     .getByRole("link", { name: "Academy" })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Wissen, das zusammenwächst." }),
+    page.getByRole("heading", { name: "Kubernetes von innen verstehen." }),
   ).toBeVisible();
   expect(
     await page.evaluate(

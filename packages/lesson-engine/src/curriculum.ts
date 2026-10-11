@@ -1,0 +1,98 @@
+export const curriculum = [
+  {
+    id: "01",
+    title: "Linux Fundamentals",
+    topics: "Prozesse, systemd, Namespaces, cgroups, Netzwerk",
+    phase: "A",
+  },
+  {
+    id: "02",
+    title: "Container Fundamentals",
+    topics: "OCI, Images, containerd, runc, CRI",
+    phase: "A",
+  },
+  {
+    id: "03",
+    title: "Kubernetes Architecture",
+    topics: "Control Plane, etcd, Scheduler, Controller",
+    phase: "A",
+  },
+  {
+    id: "04",
+    title: "Cluster Bootstrap",
+    topics: "kubeadm, Zertifikate, Node Join, Upgrades",
+    phase: "A",
+  },
+  {
+    id: "05",
+    title: "Kubernetes Workloads",
+    topics: "Pods, Deployments, StatefulSets, DaemonSets, Jobs",
+    phase: "B",
+  },
+  {
+    id: "06",
+    title: "Scheduling & Resources",
+    topics: "Requests, Limits, Affinity, Taints, QoS",
+    phase: "B",
+  },
+  {
+    id: "07",
+    title: "Kubernetes Networking",
+    topics: "CNI, Cilium, CoreDNS, Services, NetworkPolicies",
+    phase: "B",
+  },
+  {
+    id: "08",
+    title: "Ingress & Gateway",
+    topics: "MetalLB, Gateway API, TLS, cert-manager",
+    phase: "B",
+  },
+  {
+    id: "09",
+    title: "Storage",
+    topics: "PV, PVC, CSI, StorageClasses, Longhorn",
+    phase: "C",
+  },
+  {
+    id: "10",
+    title: "Helm & Kustomize",
+    topics: "Charts, Templates, Values, Overlays",
+    phase: "C",
+  },
+  {
+    id: "11",
+    title: "Operators & CRDs",
+    topics: "Reconciliation, Zalando Postgres Operator",
+    phase: "C",
+  },
+  {
+    id: "12",
+    title: "Observability",
+    topics: "Prometheus, Grafana, Loki, Alertmanager",
+    phase: "C",
+  },
+  {
+    id: "13",
+    title: "GitOps",
+    topics: "Argo CD, ApplicationSets, Sync, Rollbacks",
+    phase: "C",
+  },
+  {
+    id: "14",
+    title: "Kubernetes Security",
+    topics: "RBAC, ServiceAccounts, Secrets, Kyverno",
+    phase: "D",
+  },
+  {
+    id: "15",
+    title: "High Availability",
+    topics: "etcd Quorum, Failover, Autoscaling, Backups",
+    phase: "D",
+  },
+  {
+    id: "16",
+    title: "Troubleshooting",
+    topics: "CrashLoopBackOff, DNS, Netzwerk, Storage, Recovery",
+    phase: "D",
+  },
+];

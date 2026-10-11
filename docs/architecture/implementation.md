@@ -1,21 +1,32 @@
-# KubeLab MVP
+# KubeLab 0.2 · Content First
 
-Die Vite-SPA wird ausschließlich statisch gebaut. HashRouter und relative Asset-Pfade ermöglichen GitHub Pages sowohl unter einer Repository-Unterseite als auch auf einer eigenen Domain. Die Webseite verfügt über keinen Server, kein Tracking und keine Anmeldung.
+Die React-/TypeScript-SPA wird mit Vite ausschließlich statisch gebaut. HashRouter und relative Assets unterstützen GitHub Pages unter einer Repository-Unterseite. Kein Server, Tracking, Konto oder Clusterzugriff.
 
-- `apps/web`: React-Oberfläche, Layout, Seiten, Monaco, xterm.js und React Flow.
-- `content/fundamentals`: drei MDX-Lektionen mit Konzept, Aufgabe und Troubleshooting. Quiz-Metadaten in `packages/lesson-engine`.
-- `packages/cluster-model`: begrenztes Ressourcenmodell und Scheduler-Experiment.
-- `packages/validation`: YAML-Parsing, AJV-Basisschema und semantische Prüfungen. Keine vollständige Kubernetes-OpenAPI-Validierung.
-- `packages/simulation-engine`: atomare Apply-Operationen sowie streng begrenzte kubectl-Simulation. Kein eval, keine Shell, keine Netzwerkverbindung zu Clustern.
-- `apps/web/src/stores`: Zustand und versionierter IndexedDB-Fortschritt. Fehler werden sichtbar angezeigt. Import validiert die Daten vor dem Ersetzen; Schreiboperationen werden serialisiert.
-- `apps/web/src/pages/buildSteps.ts`: sieben Schritte für frische Ubuntu-24.04-VMs, Kubernetes 1.35.0 und Cilium 1.19.0. Manuelle Bestätigungen sind keine automatischen Clusterprüfungen.
+## Aufbau
 
-## Bewusste Grenzen
+- `content/architecture/lessons.ts`: neun typisierte Referenzlektionen mit 27 Fragen, Lernzielen, Deep Dives, Experimentzuordnung, Praxis, Fehleranalyse, Herausforderungen, Lösungen und Primärquellen. Linux, Container und Networking bleiben MDX-Einführungen.
+- `packages/lesson-engine`: verfügbare Lektionen und separater Lehrplan mit 16 Themenbereichen. Geplante Module gelten nicht als fertig.
+- `apps/web/src/pages/ArchitectureLesson.tsx`: einheitliche Lernansicht, freie Navigation, Lösungen und Wissensprüfung. Erst drei richtige Antworten schließen eine Referenzlektion ab.
+- `apps/web/src/components/ArchitectureExperiments.tsx`: Architektur, API, Quorum, Scheduling, Runtime, Request-Ablauf und Fehleranalyse. `Reconciliation.tsx` zeigt einen einfachen Regelkreis. Jedes Modell beschreibt seine Grenzen.
+- `packages/simulation-engine`: reine Architekturmodelle, atomare Apply-Operationen, begrenzte kubectl-Simulation und drei Operations-Szenarien. Kein eval, keine Shell, keine Verbindung zu Clustern.
+- `packages/cluster-model`: begrenztes Ressourcenmodell. `packages/validation`: YAML-Parsing, AJV-Basisschema und semantische Prüfung, keine vollständige Kubernetes-OpenAPI-Validierung.
+- `packages/lab-state`: versioniertes Lab-Format mit Größen-, Ressourcen- und Identitätsprüfung. Ungültiges Entwurfs-YAML ist erlaubt; angewendete Clusterressourcen müssen gültig sein.
+- `apps/web/src/stores`: Zustand/IndexedDB mit serialisierten Schreibvorgängen und sichtbaren Speicherfehlern. Lab-Änderungen werden um 200 ms verzögert gespeichert; beim Verbergen der Seite wird ausstehendes Schreiben angestoßen. Die UI zeigt ausstehende Speicherung an. Browser-Schließen und Speicherlöschung sind keine garantierte Sicherung; JSON-Export bleibt erforderlich.
+- `apps/web/src/pages/Operations.tsx`: persistenter Editor, Simulation, Szenarien und gemeinsamer Cluster für den Visualizer. Lab-Import und Zurücksetzen erfordern ausdrückliche Bestätigung.
+- `apps/web/src/pages/buildSteps.ts`: sieben Schritte für frische Ubuntu-VMs. Manuelle Checkpoints sind keine automatischen Clusterprüfungen. Vollständige VM-Verifikation bleibt ausstehend.
 
-Die Simulation akzeptiert Deployments, Pods und Services. Sie nimmt erfolgreiche Containerstarts an und bildet weder echte Scheduling-Regeln noch Netzwerk, Image-Pulls, Storage, Secrets, Admission oder Berechtigungen nach. Terminalabfragen sind auf Namespace default beschränkt. Andere Namespaces können in Manifesten modelliert werden. Generierte Pods lassen sich nur über ihr Deployment verwalten. Der Graph zeigt höchstens sechs Pods und zwei Services; die Ressourcenansicht zeigt sämtliche angewendeten Ressourcen.
+## Datenmigration
 
-Die Live-Validierung prüft einen Teil des Kubernetes-Schemas. Sie ersetzt weder serverseitigen Dry-Run noch die Validierung eines echten API Servers. Maximal 20 Replikate pro Deployment; Manifestgröße maximal 100 KB.
+Der bestehende IndexedDB-Schlüssel `kubelab-progress` erhält Schema-Version 2. Version-1-Stände bleiben importierbar; die alte einzelne Control-Plane-Prüfung wird nicht als Abschluss der neu erarbeiteten Lektion übernommen. Andere Lektionen, Theme, Checkpoints und der alte Challenge-Erfolg bleiben erhalten. Das Lab verwendet separat `kubelab-lab-v1` mit YAML-Entwurf, angewendetem Cluster, letztem angewendetem YAML, Szenario und letzter Ausgabe. Ein Fortschrittsreset löscht kein Lab. Beide Formate haben getrennte Sicherungen.
 
-Diese Version verwendet ein projektspezifisches CSS-Designsystem; Tailwind/shadcn sind noch nicht eingebunden. Das MVP hat drei fertige Module; die übrigen Phasen sind als geplant gekennzeichnet. Der Agent, fortgeschrittene Operator-Labs, Mehrsprachigkeit, PWA-Caching und automatische Clusterprüfungen bleiben spätere Meilensteine. YAML und Simulationszustand sind sitzungsbezogen; nur Lernfortschritt und Theme werden gespeichert.
+## Modellgrenzen
 
-Der vollständige ursprüngliche Entwurf steht in `roadmap.md`.
+Das Operations Lab akzeptiert Deployments, Pods und Services und nimmt erfolgreiche Containerstarts an. Es führt kein echtes Scheduling, Netzwerk, Image-Pull, Storage, Admission oder RBAC aus. Terminalabfragen gelten für Namespace default; Manifeste können andere Namespaces modellieren. Generierte Pods werden über ihr Deployment verwaltet. Der Graph zeigt höchstens sechs Pods und zwei Services; die Ressourcenansicht zeigt alle angewendeten Ressourcen. Höchstens 20 Replikate pro Deployment und 100 KB Manifesttext.
+
+Die Architekturmodelle sind eigenständige didaktische Experimente. Der etcd-Simulator behält eine feste Mehrheit von zwei der drei Mitglieder, benötigt nach Leader-Ausfall eine explizite Wahl und bestätigt ohne Quorum keine Änderung. Er implementiert kein Raft. Der Scheduler filtert nur CPU-Requests, einen harten Node-Wunsch und einen NoSchedule-Taint. Der Request-Ablauf ist eine logische Lernfolge nebenläufiger Komponenten. Failure- und Runtime-Modelle geben keine Failover-Zeitgarantie. Sie simulieren keine produktionsfähige Kubernetes-Plattform.
+
+## Qualität
+
+Unit-Tests prüfen Zustandsübergänge, Importgrenzen, Migration, Szenariolösungen und Inhaltsstruktur. Playwright prüft die neun Lektionen, Quorum-Verhalten, Quizabschluss, Persistenz, Import/Export, Szenarioreparatur, responsive Darstellung und bestehende Kernabläufe. Fachreview und Beta-Tests mit Kollegen stehen als weitere Qualitätsschritte aus.
+
+Der aktuelle Ausbauplan steht in [content-first.md](content-first.md). Der ursprüngliche Gesamtentwurf bleibt in [roadmap.md](roadmap.md) erhalten.

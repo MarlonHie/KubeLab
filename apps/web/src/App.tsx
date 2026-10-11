@@ -1,11 +1,15 @@
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { Academy } from "./pages/Academy";
+import { ArchitectureLesson } from "./pages/ArchitectureLesson";
+import { architectureLessons } from "../../../content/architecture/lessons";
+import Networking from "../../../content/networking/services.mdx";
+import Cilium from "../../../content/networking/cilium.mdx";
+import { Reconciliation } from "./components/Reconciliation";
+import { LabBackup } from "./components/LabBackup";
+import { Badge, Heading } from "./components/Page";
+import { Operations } from "./pages/Operations";
+import { useLab } from "./stores/lab";
+import { ExecutionNotice } from "./components/ExecutionNotice";
+import { useEffect, useState } from "react";
 import {
   NavLink,
   Link,
@@ -25,7 +29,6 @@ import {
   ChevronRight,
   Clock3,
   Code2,
-  Command,
   Copy,
   Download,
   ExternalLink,
@@ -40,7 +43,6 @@ import {
   Network,
   Play,
   RotateCcw,
-  Search,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -51,23 +53,12 @@ import {
 } from "lucide-react";
 import { useProgress, parseProgress } from "./stores/progress";
 import { lessons, phases } from "../../../packages/lesson-engine/src";
-import { schedule, type Cluster } from "../../../packages/cluster-model/src";
-import {
-  apply,
-  command,
-  defaultManifest,
-  brokenManifest,
-  emptyCluster,
-  pods,
-} from "../../../packages/simulation-engine/src";
-import { validateYaml } from "../../../packages/validation/src";
+import { schedule } from "../../../packages/cluster-model/src";
 import { ClusterGraph } from "./components/ClusterGraph";
-import { Terminal } from "./components/Terminal";
 import { buildSteps } from "./pages/buildSteps";
 import Linux from "../../../content/fundamentals/linux.mdx";
 import Containers from "../../../content/fundamentals/containers.mdx";
 import ControlPlane from "../../../content/fundamentals/control-plane.mdx";
-const YamlEditor = lazy(() => import("./components/YamlEditor"));
 const nav = [
   { to: "/", label: "Übersicht", icon: LayoutDashboard },
   { to: "/academy", label: "Academy", icon: BookOpen },
@@ -75,39 +66,9 @@ const nav = [
   { to: "/operations", label: "Operations Lab", icon: TerminalSquare },
   { to: "/visualizer", label: "Visualizer", icon: Network },
 ];
-function Badge({
-  children,
-  color = "blue",
-}: {
-  children: ReactNode;
-  color?: string;
-}) {
-  return <span className={`badge ${color}`}>{children}</span>;
-}
-function Heading({
-  eyebrow,
-  title,
-  description,
-  action,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="page-heading">
-      <div>
-        <div className="eyebrow">{eyebrow}</div>
-        <h1>{title}</h1>
-        <p>{description}</p>
-      </div>
-      {action}
-    </div>
-  );
-}
 function App() {
   const progress = useProgress();
+  const labReady = useLab((s) => s.ready);
   const [menu, setMenu] = useState(false);
   const location = useLocation();
   useEffect(() => {
@@ -136,7 +97,9 @@ function App() {
             <NavLink key={n.to} to={n.to} end={n.to === "/"}>
               <n.icon size={19} />
               <span>{n.label}</span>
-              {n.to === "/academy" && <span className="nav-count">3</span>}
+              {n.to === "/academy" && (
+                <span className="nav-count">{lessons.length}</span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -161,7 +124,9 @@ function App() {
         <div className="sidebar-bottom">
           <div className="local-state">
             <HardDrive size={15} />
-            <span>Lokal gespeichert</span>
+            <span>
+              {progress.error ? "Speicherfehler" : "Lokaler Lernstand"}
+            </span>
             <span className="live-dot" />
           </div>
           <NavLink to="/settings">
@@ -178,7 +143,7 @@ function App() {
             <ExternalLink size={13} />
           </a>
           <div className="sidebar-footer">
-            KubeLab <span>v1.0 · Local first</span>
+            KubeLab <span>v0.2 · Local first</span>
           </div>
         </div>
       </aside>
@@ -242,7 +207,7 @@ function App() {
               {progress.error}
             </div>
           )}
-          {!progress.ready ? (
+          {!progress.ready || !labReady ? (
             <div className="panel">Lernstand wird geladen …</div>
           ) : (
             <Routes>
@@ -278,7 +243,11 @@ function App() {
 }
 function Dashboard({ pct }: { pct: number }) {
   const p = useProgress();
-  const next = lessons.find((l) => !p.completed.includes(l.id)) || lessons[2];
+  const next =
+    lessons.find((l) => l.id === p.lastLesson && !p.completed.includes(l.id)) ||
+    lessons.find((l) => l.moduleId === "03" && !p.completed.includes(l.id)) ||
+    lessons.find((l) => !p.completed.includes(l.id)) ||
+    lessons[2];
   return (
     <>
       <Heading
@@ -366,11 +335,14 @@ function Dashboard({ pct }: { pct: number }) {
                 {pct}
                 <small>%</small>
               </strong>
-              <span>Grundlagen</span>
+              <span>Lektionen</span>
             </div>
           </div>
           <p>
-            <strong>{p.completed.length} von 3</strong> Modulen abgeschlossen
+            <strong>
+              {p.completed.length} von {lessons.length}
+            </strong>{" "}
+            Lektionen abgeschlossen
           </p>
           <div className="progress-stats">
             <span>
@@ -384,7 +356,7 @@ function Dashboard({ pct }: { pct: number }) {
               <FlaskConical size={17} />
               Gelöste Challenges
             </span>
-            <strong>{p.challenge ? 1 : 0}</strong>
+            <strong>{p.completedChallenges.length}</strong>
           </div>
         </section>
       </div>
@@ -405,7 +377,7 @@ function Dashboard({ pct }: { pct: number }) {
             title: "Academy",
             description:
               "Die Konzepte hinter Kubernetes. Verständlich, interaktiv und Schritt für Schritt.",
-            meta: "3 Module verfügbar",
+            meta: `${lessons.length} Lektionen verfügbar`,
           },
           {
             to: "/build",
@@ -468,17 +440,23 @@ function Dashboard({ pct }: { pct: number }) {
             </Link>
           </div>
           <div className="path-row">
-            {phases.slice(0, 4).map(([name, desc, num], i) => (
+            {phases.slice(0, 4).map(([name, , num], i) => (
               <div className={`path-item ${i === 0 ? "active" : ""}`} key={num}>
                 <span className="path-step">{num}</span>
                 <strong>{name}</strong>
-                <span>{i < 2 ? "Jetzt verfügbar" : "Demnächst"}</span>
+                <span>
+                  {i === 2
+                    ? "9 Lektionen verfügbar"
+                    : i < 2
+                      ? "Einführung verfügbar"
+                      : "Geplant"}
+                </span>
               </div>
             ))}
           </div>
           <div className="path-foot">
             <Sparkles size={15} />
-            12 Phasen · Von den Grundlagen bis zu High Availability
+            16 Themenbereiche · Von den Grundlagen bis zu High Availability
           </div>
         </section>
         <section className="local-card">
@@ -499,113 +477,11 @@ function Dashboard({ pct }: { pct: number }) {
     </>
   );
 }
-function Academy() {
-  const p = useProgress();
-  const [query, setQuery] = useState("");
-  const filtered = lessons.filter((l) =>
-    (l.title + " " + l.description + " " + l.category)
-      .toLowerCase()
-      .includes(query.toLowerCase()),
-  );
-  return (
-    <>
-      <Heading
-        eyebrow="ACADEMY"
-        title="Wissen, das zusammenwächst."
-        description="Erst das Konzept verstehen. Dann selbst ausprobieren."
-      />
-      <div className="academy-toolbar">
-        <div className="tabs-label">
-          <BookOpen size={18} />
-          Deine Grundlagen<span className="count-pill">3 Module</span>
-        </div>
-        <label className="search">
-          <Search size={18} />
-          <input
-            aria-label="Module durchsuchen"
-            placeholder="Module durchsuchen …"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
-      </div>
-      <div className="lesson-grid">
-        {filtered.map((l, i) => (
-          <Link
-            to={`/academy/${l.id}`}
-            className="lesson-card panel"
-            key={l.id}
-          >
-            <div className={`lesson-art art-${l.id}`}>
-              <span className="art-number">0{lessons.indexOf(l) + 1}</span>
-              {l.id === "linux" ? (
-                <TerminalSquare size={62} />
-              ) : l.id === "containers" ? (
-                <Box size={66} />
-              ) : (
-                <Network size={66} />
-              )}
-              <span className="art-caption">
-                {l.id === "linux"
-                  ? "$ understand --the-basics"
-                  : l.id === "containers"
-                    ? "image → runtime → container"
-                    : "desired state → reconciliation"}
-              </span>
-            </div>
-            <div className="lesson-card-content">
-              <div className="eyebrow">{l.category}</div>
-              <h2>{l.title}</h2>
-              <p>{l.description}</p>
-              <div className="lesson-card-footer">
-                <span>
-                  <Clock3 size={15} />
-                  {l.duration} Min.
-                </span>
-                <Badge color={p.completed.includes(l.id) ? "green" : "blue"}>
-                  {p.completed.includes(l.id)
-                    ? "Abgeschlossen"
-                    : "Modul öffnen"}
-                </Badge>
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
-      {!filtered.length && (
-        <div className="panel">
-          Keine passenden Module. Versuche „Linux“, „Container“ oder „Control
-          Plane“.
-        </div>
-      )}
-      <div className="section-heading">
-        <div>
-          <h2>Das große Ganze</h2>
-          <p>Zwölf Phasen. Ein vollständiges Verständnis.</p>
-        </div>
-        <Badge color="gray">ROADMAP</Badge>
-      </div>
-      <div className="roadmap-grid">
-        {phases.map(([name, desc, num], i) => (
-          <div className={`phase panel ${i > 1 ? "planned" : ""}`} key={num}>
-            <span>{num}</span>
-            <div>
-              <h3>{name}</h3>
-              <p>{desc}</p>
-            </div>
-            {i < 2 ? (
-              <Badge color="green">Verfügbar</Badge>
-            ) : (
-              <Badge color="gray">Geplant</Badge>
-            )}
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
 function Lesson() {
   const { id } = useParams();
+  const architecture = architectureLessons.find((l) => l.id === id);
+  if (architecture)
+    return <ArchitectureLesson key={id} lesson={architecture} />;
   const lesson = lessons.find((l) => l.id === id);
   if (!lesson) return <Navigate to="/academy" replace />;
   return <LessonBody key={id} lesson={lesson} />;
@@ -617,27 +493,34 @@ function LessonBody({ lesson }: { lesson: (typeof lessons)[number] }) {
   useEffect(() => {
     p.update({ lastLesson: lesson.id });
   }, [lesson.id]);
-  const Content =
-    lesson.id === "linux"
-      ? Linux
-      : lesson.id === "containers"
-        ? Containers
-        : ControlPlane;
+  const contentModules: Record<string, React.ComponentType> = {
+    linux: Linux,
+    containers: Containers,
+    "control-plane": ControlPlane,
+    networking: Networking,
+    cilium: Cilium,
+  };
+  const Content = contentModules[lesson.id];
   const next = lessons[lessons.indexOf(lesson) + 1];
   return (
     <>
       <Link className="text-link back-link" to="/academy">
-        Academy / Grundlagen
+        Academy / Lernpfad
       </Link>
       <Heading
-        eyebrow={`MODUL 0${lessons.indexOf(lesson) + 1} · ${lesson.category}`}
+        eyebrow={`MODUL ${lesson.moduleId} · ${lesson.category}`}
         title={lesson.title}
         description={`${lesson.duration} Minuten · Konzept → Erkunden → Aufgabe → Wissenscheck`}
       />
       <div className="lesson-layout">
         <article className="prose panel">
           <Content />
-          {lesson.id === "control-plane" && <Scheduler />}
+          {lesson.id === "control-plane" && (
+            <>
+              <Reconciliation />
+              <Scheduler />
+            </>
+          )}
           <section className="quiz">
             <div className="eyebrow">WISSENSCHECK</div>
             <h3>{lesson.question}</h3>
@@ -680,7 +563,7 @@ function LessonBody({ lesson }: { lesson: (typeof lessons)[number] }) {
                 role="status"
               >
                 {answer === lesson.correct
-                  ? "Richtig! Dein Modul ist abgeschlossen. "
+                  ? "Richtig! Deine Lektion ist abgeschlossen. "
                   : "Noch nicht ganz. "}
                 {lesson.explanation}
               </div>
@@ -777,14 +660,40 @@ function Scheduler() {
   );
 }
 function Visualizer() {
+  const lab = useLab();
+  const [view, setView] = useState<"lab" | "example">("lab");
   return (
     <>
       <Heading
         eyebrow="CLUSTER VISUALIZER"
         title="Sieh, wie alles zusammenhängt."
         description="Erkunde die Control Plane. Klicke auf eine Komponente oder folge dem Weg eines Pods."
-        action={<Badge color="purple">Beispielarchitektur</Badge>}
+        action={
+          <Badge color="purple">
+            {view === "lab" ? "Deine Simulation" : "Beispielarchitektur"}
+          </Badge>
+        }
       />
+      <ExecutionNotice mode="simulation" />
+      <div className="visualizer-toolbar">
+        <div className="segmented">
+          <button
+            className={view === "lab" ? "selected" : ""}
+            onClick={() => setView("lab")}
+          >
+            Mein gespeichertes Lab
+          </button>
+          <button
+            className={view === "example" ? "selected" : ""}
+            onClick={() => setView("example")}
+          >
+            Beispielarchitektur
+          </button>
+        </div>
+        <Link className="button primary" to="/operations">
+          Im Editor bearbeiten
+        </Link>
+      </div>
       <section className="panel visualizer-panel">
         <div className="panel-bar">
           <span>
@@ -793,7 +702,7 @@ function Visualizer() {
           </span>
           <span className="subtle">1 Control Plane · 2 Worker</span>
         </div>
-        <ClusterGraph />
+        <ClusterGraph cluster={view === "lab" ? lab.cluster : undefined} />
       </section>
       <div className="visualizer-bottom">
         <Scheduler />
@@ -841,6 +750,7 @@ function BuildLab() {
         description="Vom frischen Linux-System zum laufenden Workload. In deinem eigenen Terminal."
         action={<Badge color="purple">Geführtes Lab</Badge>}
       />
+      <ExecutionNotice mode="external" />
       <div className="build-summary panel">
         <div>
           <Layers3 size={20} />
@@ -976,283 +886,6 @@ function BuildLab() {
     </>
   );
 }
-function Operations() {
-  const p = useProgress();
-  const [source, setSource] = useState(defaultManifest);
-  const [cluster, setCluster] = useState<Cluster>(emptyCluster);
-  const clusterRef = useRef(cluster);
-  const [output, setOutput] = useState(
-    "Dein Cluster ist bereit. Wende dein erstes Manifest an.",
-  );
-  const [resetKey, setResetKey] = useState(0);
-  const [challenge, setChallenge] = useState(false);
-  const [hint, setHint] = useState(false);
-  const [terminalInput, setTerminalInput] = useState("kubectl get pods");
-  const [width, setWidth] = useState(56);
-  const [tab, setTab] = useState<"graph" | "resources">("graph");
-  const validation = validateYaml(source);
-  function updateCluster(c: Cluster) {
-    clusterRef.current = c;
-    setCluster(c);
-  }
-  function run(input: string) {
-    const result = command(clusterRef.current, input, source);
-    updateCluster(result.cluster);
-    setOutput(result.output);
-    return result.output;
-  }
-  function applyManifest() {
-    const result = apply(clusterRef.current, source);
-    updateCluster(result.cluster);
-    setOutput(result.output);
-  }
-  function reset(broken = false) {
-    setSource(broken ? brokenManifest : defaultManifest);
-    updateCluster(emptyCluster);
-    setResetKey((x) => x + 1);
-    setOutput(
-      broken
-        ? "Challenge gestartet: Finde den Fehler im Deployment."
-        : "Simulation zurückgesetzt.",
-    );
-    setChallenge(broken);
-    setHint(false);
-  }
-  function checkTask() {
-    const found = cluster.resources.find(
-      (r) =>
-        r.kind === "Deployment" &&
-        r.metadata.name === "hello-kubelab" &&
-        (r.metadata.namespace || "default") === "default",
-    );
-    if (found && found.spec.replicas === 3) {
-      p.update({ challenge: true });
-      setOutput(
-        "Geschafft! Dein gültiges Deployment läuft mit 3 simulierten Pods. Challenge abgeschlossen.",
-      );
-    } else
-      setOutput(
-        "Noch nicht fertig: Wende das reparierte Deployment hello-kubelab im Namespace default mit genau 3 Replikaten an.",
-      );
-  }
-  return (
-    <>
-      <Heading
-        eyebrow="OPERATIONS LAB"
-        title="Ausprobieren ist der beste Lehrer."
-        description="Bearbeite dein Manifest, führe Befehle aus und beobachte deinen Cluster."
-        action={
-          <Badge color="orange">
-            <FlaskConical size={13} />
-            Simulation · kein echter Cluster
-          </Badge>
-        }
-      />
-      <div className="lab-challenge panel">
-        <div>
-          <span className="feature-icon orange">
-            <TerminalSquare size={23} />
-          </span>
-          <div>
-            <div className="eyebrow">
-              {challenge ? "CHALLENGE 01" : "DEIN SPIELPLATZ"}
-            </div>
-            <h3>
-              {challenge
-                ? "Ein Deployment braucht deine Hilfe."
-                : "Dein erstes Deployment"}
-            </h3>
-            <p>
-              {challenge
-                ? "Repariere den fehlerhaften Selektor und starte genau 3 Replikate."
-                : "Starte zwei nginx-Pods. Ändere anschließend die Replikate oder füge einen Service hinzu."}
-            </p>
-          </div>
-        </div>
-        <div className="inline-actions">
-          {challenge ? (
-            <>
-              <button
-                className="button secondary small"
-                onClick={() => setHint(!hint)}
-              >
-                Hinweis
-              </button>
-              <button className="button primary small" onClick={checkTask}>
-                <Check size={15} />
-                Aufgabe prüfen
-              </button>
-            </>
-          ) : (
-            <button className="button secondary" onClick={() => reset(true)}>
-              Challenge starten
-            </button>
-          )}
-        </div>
-      </div>
-      {hint && (
-        <div className="notice">
-          Vergleiche spec.selector.matchLabels mit
-          spec.template.metadata.labels. Die Werte müssen zusammenpassen. Setze
-          außerdem spec.replicas auf 3 und wende das Manifest an.
-        </div>
-      )}
-      <div className="lab-controls">
-        <label>
-          Panelbreite{" "}
-          <input
-            aria-label="Editorbreite"
-            type="range"
-            min="35"
-            max="70"
-            value={width}
-            onChange={(e) => setWidth(Number(e.target.value))}
-          />
-        </label>
-        <button className="text-button" onClick={() => reset(challenge)}>
-          <RotateCcw size={15} />
-          Übung zurücksetzen
-        </button>
-      </div>
-      <div
-        className="lab-workspace"
-        style={{ "--editor-width": `${width}%` } as React.CSSProperties}
-      >
-        <section className="editor-panel panel">
-          <div className="panel-bar">
-            <span>
-              <Code2 size={17} />
-              deployment.yaml
-            </span>
-            <button className="button primary small" onClick={applyManifest}>
-              <Play size={14} />
-              Anwenden
-            </button>
-          </div>
-          <Suspense
-            fallback={
-              <div className="editor-loading">Editor wird geladen …</div>
-            }
-          >
-            <YamlEditor
-              value={source}
-              onChange={setSource}
-              dark={p.theme === "dark"}
-            />
-          </Suspense>
-          <div
-            className={`validation-status ${validation.errors.length ? "invalid" : ""}`}
-            role="status"
-          >
-            {validation.errors.length ? (
-              <>
-                <X size={15} />
-                {validation.errors[0]}
-              </>
-            ) : (
-              <>
-                <CheckCircle2 size={15} />
-                YAML gültig · {validation.resources.length} Ressource(n)
-              </>
-            )}
-          </div>
-          <div className="terminal-header">
-            <span>
-              <TerminalSquare size={15} />
-              Terminal
-            </span>
-            <span>SIMULIERT</span>
-          </div>
-          <Terminal run={run} resetKey={resetKey} />
-          <form
-            className="command-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              run(terminalInput);
-            }}
-          >
-            <label className="sr-only" htmlFor="command">
-              Simulierten Befehl eingeben
-            </label>
-            <span>$</span>
-            <input
-              id="command"
-              value={terminalInput}
-              onChange={(e) => setTerminalInput(e.target.value)}
-              spellCheck={false}
-            />
-            <button aria-label="Befehl ausführen" type="submit">
-              <Play size={16} />
-            </button>
-          </form>
-        </section>
-        <section className="lab-graph panel">
-          <div className="panel-bar">
-            <div className="segmented">
-              <button
-                className={tab === "graph" ? "selected" : ""}
-                onClick={() => setTab("graph")}
-              >
-                Cluster
-              </button>
-              <button
-                className={tab === "resources" ? "selected" : ""}
-                onClick={() => setTab("resources")}
-              >
-                Ressourcen
-              </button>
-            </div>
-            <Badge color="green">{pods(cluster).length} Pods</Badge>
-          </div>
-          {tab === "graph" ? (
-            <>
-              <ClusterGraph cluster={cluster} compact />
-              {pods(cluster).length > 6 && (
-                <p className="subtle graph-note">
-                  Im Diagramm sind die ersten 6 Pods sichtbar.
-                </p>
-              )}
-            </>
-          ) : (
-            <div className="resource-list">
-              {!cluster.resources.length ? (
-                <p>Noch keine Ressourcen. Wende dein Manifest an.</p>
-              ) : (
-                cluster.resources.map((r) => (
-                  <div
-                    key={`${r.kind}-${r.metadata.namespace}-${r.metadata.name}`}
-                  >
-                    <Box size={19} />
-                    <div>
-                      <strong>{r.metadata.name}</strong>
-                      <span>
-                        {r.kind} · {r.metadata.namespace || "default"}
-                      </span>
-                    </div>
-                    <Badge color="blue">Simuliert</Badge>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-          <div className="lab-output">
-            <div className="eyebrow">LETZTES ERGEBNIS</div>
-            <pre role="status">{output}</pre>
-          </div>
-        </section>
-      </div>
-      <div className="notice lab-notice">
-        <ShieldCheck size={18} />
-        <span>
-          Unterstützt: Deployment, Pod und Service. Die Simulation prüft einen
-          begrenzten Schemasatz und nimmt erfolgreiche Containerstarts an.
-          Netzwerk, Images, Speicher und Policies werden nicht ausgeführt. Mit{" "}
-          <code>help</code> siehst du die unterstützten Befehle.
-        </span>
-      </div>
-    </>
-  );
-}
 function Settings() {
   const p = useProgress();
   const [message, setMessage] = useState("");
@@ -1292,6 +925,7 @@ function Settings() {
         description="Verwalte dein Design und deinen lokal gespeicherten Lernstand."
       />
       <div className="settings-grid">
+        <LabBackup />
         <section className="panel settings-card">
           <span className="feature-icon blue">
             <Sun size={22} />
@@ -1324,8 +958,8 @@ function Settings() {
           </span>
           <h2>Dein Lernstand</h2>
           <p>
-            {p.completed.length} Module · {p.checkpoints.length} Lab-Schritte ·{" "}
-            {p.challenge ? 1 : 0} Challenges abgeschlossen
+            {p.completed.length} Lektionen · {p.checkpoints.length} Lab-Schritte
+            · {p.completedChallenges.length} Challenges abgeschlossen
           </p>
           <p>
             Der Lernstand liegt in IndexedDB in diesem Browser. Exportiere ihn
@@ -1374,9 +1008,9 @@ function Settings() {
           </span>
           <h2>Neu anfangen</h2>
           <p>
-            Setze abgeschlossene Module, Lab-Schritte und Challenges auf diesem
-            Gerät zurück. Exportiere vorher einen Lernstand, den du behalten
-            möchtest.
+            Setze abgeschlossene Lektionen, Lab-Schritte und Challenges auf
+            diesem Gerät zurück. Exportiere vorher einen Lernstand, den du
+            behalten möchtest.
           </p>
           {!confirm ? (
             <button

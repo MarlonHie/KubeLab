@@ -1,4 +1,6 @@
-export const lessons = [
+import { architectureLessons } from "../../../content/architecture/lessons";
+import { curriculum } from "./curriculum";
+const existingLessons = [
   {
     id: "linux",
     title: "Linux ist das Fundament",
@@ -34,7 +36,7 @@ export const lessons = [
     id: "control-plane",
     title: "Das Gehirn deines Clusters",
     category: "CONTROL PLANE",
-    duration: 20,
+    duration: 30,
     description:
       "API Server, etcd, Scheduler und Controller Manager im Zusammenspiel.",
     question:
@@ -44,18 +46,71 @@ export const lessons = [
     explanation:
       "Der Scheduler bewertet noch nicht zugewiesene Pods und wählt geeignete Nodes. kubelet startet die Container auf dem gewählten Node.",
   },
+  {
+    id: "networking",
+    title: "Vom Pod zum Service",
+    category: "NETWORKING",
+    duration: 20,
+    description:
+      "Pod-Netz, Service-Selektoren, EndpointSlices und DNS gemeinsam verstehen.",
+    question:
+      "Warum kann ein gültiger Service trotzdem keine Pod-Endpunkte haben?",
+    answers: [
+      "Sein Selektor passt zu keinem Pod im gleichen Namespace",
+      "Jeder Service benötigt einen Ingress",
+      "CoreDNS muss für jeden Pod neu gestartet werden",
+    ],
+    correct: 0,
+    explanation:
+      "Ein Service wählt Pods über Labels im selben Namespace. Ein falscher Selektor bleibt gültiges YAML, liefert aber keine passenden Endpunkte.",
+  },
+  {
+    id: "cilium",
+    title: "Netzwerkregeln mit Cilium",
+    category: "NETWORKING",
+    duration: 30,
+    description:
+      "CNI, eBPF und eine gezielte NetworkPolicy-Übung auf deinem echten Lab-Cluster.",
+    question:
+      "Was macht eine Ingress-Policy mit leerer ingress-Liste für die ausgewählten Pods?",
+    answers: [
+      "Sie sperrt automatisch DNS-Egress aller Pods",
+      "Sie isoliert eingehenden Verkehr; passende weitere Allow-Policies können ihn erlauben",
+      "Sie löscht die Services der Pods",
+    ],
+    correct: 1,
+    explanation:
+      "Die Policy betrifft Ingress der ausgewählten Pods. Kubernetes-NetworkPolicies wirken additiv; Egress wird hier nicht isoliert.",
+  },
 ];
-export const phases = [
-  ["Linux & Container", "Prozesse, Namespaces, containerd", "01"],
-  ["Control Plane", "API Server, etcd, Scheduling", "02"],
-  ["Worker Nodes", "kubelet, Registrierung, Scheduling", "03"],
-  ["Networking", "Cilium, DNS, Services, Policies", "04"],
-  ["External Traffic", "MetalLB, Gateway API, TLS", "05"],
-  ["Storage", "PV, PVC, CSI und Longhorn", "06"],
-  ["Operators", "CRDs, Reconciliation, PostgreSQL", "07"],
-  ["Observability", "Prometheus, Grafana, Loki", "08"],
-  ["GitOps", "Helm, Kustomize, Argo CD", "09"],
-  ["Security", "RBAC, Secrets, Kyverno", "10"],
-  ["Scaling & HA", "HPA, KEDA, etcd Quorum", "11"],
-  ["Operations", "Backups, Upgrades, Troubleshooting", "12"],
+export const lessons = [
+  ...existingLessons
+    .filter((l) => ["linux", "containers"].includes(l.id))
+    .map((l) => ({
+      ...l,
+      moduleId: l.id === "linux" ? "01" : "02",
+      level: "Fundamentals" as const,
+    })),
+  ...architectureLessons.map((l) => ({
+    id: l.id,
+    title: l.title,
+    category: "KUBERNETES ARCHITECTURE",
+    duration: l.duration,
+    description: l.description,
+    question: l.questions[0].prompt,
+    answers: l.questions[0].answers,
+    correct: l.questions[0].correct,
+    explanation: l.questions[0].explanation,
+    moduleId: "03",
+    level: l.level,
+  })),
+  ...existingLessons
+    .filter((l) => ["networking", "cilium"].includes(l.id))
+    .map((l) => ({ ...l, moduleId: "07", level: "Deep Dive" as const })),
 ];
+export const phases = curriculum.map((module) => [
+  module.title,
+  module.topics,
+  module.id,
+]);
+export { curriculum };

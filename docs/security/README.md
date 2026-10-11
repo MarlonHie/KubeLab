@@ -2,7 +2,7 @@
 
 Die Anwendung stellt keine Verbindung zur Kubernetes-API oder zu localhost-Agenten her. kubeconfig, Tokens und andere Zugangsdaten werden weder verlangt noch verarbeitet. Das Browserterminal führt nur die explizit unterstützten Simulationsbefehle aus. Nicht unterstützte Befehle und Flags liefern Fehler.
 
-MDX kommt ausschließlich aus dem Repository und wird beim Build kompiliert. Importierte Lernstände sind JSON mit Versions- und Werteprüfung; fremde Dateien werden nicht als Code ausgeführt. YAML wird als Daten geparst (100-KB-Grenze und begrenzte Aliase). IndexedDB enthält ausschließlich Theme, Fortschrittskennungen und zuletzt geöffnetes Modul.
+MDX und strukturierte Lektionen kommen ausschließlich aus dem Repository und werden beim Build kompiliert. Importierte Lern- und Lab-Stände sind JSON mit Versions-, Größen- und Werteprüfung; fremde Dateien werden nicht als Code ausgeführt. YAML wird als Daten geparst (100-KB-Grenze und begrenzte Aliase). IndexedDB enthält Theme, Fortschritt, YAML-Entwurf, angewendete Ressourcen, Szenario und letzte Simulationsausgabe. Lab-Import und Reset verlangen eine Bestätigung in der Oberfläche. Keine echten Secrets in Übungsmanifeste oder Sicherungen eintragen. Browser-Speicher ist kein dauerhaft garantiertes Backup.
 
 Die Build-Lab-Befehle sind für eigene, frische und isolierte Übungs-VMs bestimmt. Versionspins sind reproduzierbare Lernstände, keine aktuellen Produktionsempfehlungen. Der Reset erfolgt über vorab angelegte Snapshots. Das Lab wurde hier nicht auf echten VMs ausgeführt.
 

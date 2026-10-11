@@ -1,44 +1,55 @@
+import { lessons } from "../../../../packages/lesson-engine/src";
 import { create } from "zustand";
 import { get, set } from "idb-keyval";
 export interface Progress {
-  version: 1;
+  version: 2;
   completed: string[];
   checkpoints: number[];
   challenge: boolean;
+  completedChallenges: string[];
   lastLesson: string;
   theme: "light" | "dark";
 }
 const defaults: Progress = {
-  version: 1,
+  version: 2,
   completed: [],
   checkpoints: [],
   challenge: false,
-  lastLesson: "linux",
+  completedChallenges: [],
+  lastLesson: "cluster-basics",
   theme: "light",
 };
 export function parseProgress(value: unknown): Progress {
   const v = value as Progress;
   if (
     !v ||
-    v.version !== 1 ||
+    ![1, 2].includes(v.version) ||
     !Array.isArray(v.completed) ||
-    !v.completed.every((x) =>
-      ["linux", "containers", "control-plane"].includes(x),
-    ) ||
+    !v.completed.every((x) => lessons.some((l) => l.id === x)) ||
     !Array.isArray(v.checkpoints) ||
     !v.checkpoints.every((x) => Number.isInteger(x) && x >= 0 && x < 7) ||
     typeof v.challenge !== "boolean" ||
-    !["linux", "containers", "control-plane"].includes(v.lastLesson) ||
+    (v.completedChallenges !== undefined &&
+      (!Array.isArray(v.completedChallenges) ||
+        !v.completedChallenges.every((id) =>
+          ["selector", "service", "replicas"].includes(id),
+        ))) ||
+    !lessons.some((l) => l.id === v.lastLesson) ||
     !["light", "dark"].includes(v.theme)
   )
     throw new Error(
-      "Ungültige KubeLab-Fortschrittsdatei (Version 1 erwartet).",
+      "Ungültige KubeLab-Fortschrittsdatei (Version 1 oder 2 erwartet).",
     );
   return {
-    version: 1,
-    completed: [...new Set(v.completed)],
+    version: 2,
+    completed: [...new Set(v.completed)].filter(
+      (id) => !(Number(v.version) === 1 && id === "control-plane"),
+    ),
     checkpoints: [...new Set(v.checkpoints)],
     challenge: v.challenge,
+    completedChallenges: [
+      ...new Set(v.completedChallenges || (v.challenge ? ["selector"] : [])),
+    ],
     lastLesson: v.lastLesson,
     theme: v.theme,
   };
@@ -69,9 +80,9 @@ export const useProgress = create<
   ready: false,
   error: "",
   update: (p) => {
-    setState(p);
-    const s = useProgress.getState();
-    save(parseProgress(s));
+    const next = parseProgress({ ...useProgress.getState(), ...p });
+    setState(next);
+    save(next);
   },
   reset: () => {
     setState(defaults);

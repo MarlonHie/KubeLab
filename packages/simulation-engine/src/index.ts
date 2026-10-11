@@ -41,6 +41,12 @@ export function apply(cluster: Cluster, source: string) {
     if (i >= 0) resources[i] = r;
     else resources.push(r);
   }
+  if (resources.length > 100)
+    return {
+      cluster,
+      output: "Simulationslimit: maximal 100 Ressourcen.",
+      ok: false,
+    };
   return {
     cluster: { resources, revision: cluster.revision + 1 },
     output: result.resources
