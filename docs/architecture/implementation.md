@@ -1,12 +1,12 @@
-# KubeLab 0.2 · Content First
+# KubeLab 0.2.1 · Content First
 
 Die React-/TypeScript-SPA wird mit Vite ausschließlich statisch gebaut. HashRouter und relative Assets unterstützen GitHub Pages unter einer Repository-Unterseite. Kein Server, Tracking, Konto oder Clusterzugriff.
 
 ## Aufbau
 
-- `content/architecture/lessons.ts`: neun typisierte Referenzlektionen mit 27 Fragen, Lernzielen, Deep Dives, Experimentzuordnung, Praxis, Fehleranalyse, Herausforderungen, Lösungen und Primärquellen. Linux, Container und Networking bleiben MDX-Einführungen.
-- `packages/lesson-engine`: verfügbare Lektionen und separater Lehrplan mit 16 Themenbereichen. Geplante Module gelten nicht als fertig.
-- `apps/web/src/pages/ArchitectureLesson.tsx`: einheitliche Lernansicht, freie Navigation, Lösungen und Wissensprüfung. Erst drei richtige Antworten schließen eine Referenzlektion ab.
+- `content/lessons/*.json`: alle 13 vorhandenen Lektionen als deklarative Dokumente. Neun Architekturlektionen mit 27 Fragen sowie vier Einführungen; keine zusätzlichen Module in diesem Update.
+- `packages/lesson-engine`: JSON Schema, Blocktypen, semantische Inhaltsprüfung, Aufgaben-/Quizprüfung, Katalog und Lehrplan mit 16 Themenbereichen. Geplante Module gelten nicht als fertig.
+- `apps/web/src/pages/LessonPage.tsx`: eine gemeinsame Lernansicht für alle Module. Eine nach Lektions-ID erneuerte Sitzung setzt Antworten, Feedback, Zuordnungen und Modelle zurück. `LessonBlocks.tsx` stellt die geprüften Inhalte dar.
 - `apps/web/src/components/ArchitectureExperiments.tsx`: Architektur, API, Quorum, Scheduling, Runtime, Request-Ablauf und Fehleranalyse. `Reconciliation.tsx` zeigt einen einfachen Regelkreis. Jedes Modell beschreibt seine Grenzen.
 - `packages/simulation-engine`: reine Architekturmodelle, atomare Apply-Operationen, begrenzte kubectl-Simulation und drei Operations-Szenarien. Kein eval, keine Shell, keine Verbindung zu Clustern.
 - `packages/cluster-model`: begrenztes Ressourcenmodell. `packages/validation`: YAML-Parsing, AJV-Basisschema und semantische Prüfung, keine vollständige Kubernetes-OpenAPI-Validierung.
@@ -17,7 +17,9 @@ Die React-/TypeScript-SPA wird mit Vite ausschließlich statisch gebaut. HashRou
 
 ## Datenmigration
 
-Der bestehende IndexedDB-Schlüssel `kubelab-progress` erhält Schema-Version 2. Version-1-Stände bleiben importierbar; die alte einzelne Control-Plane-Prüfung wird nicht als Abschluss der neu erarbeiteten Lektion übernommen. Andere Lektionen, Theme, Checkpoints und der alte Challenge-Erfolg bleiben erhalten. Das Lab verwendet separat `kubelab-lab-v1` mit YAML-Entwurf, angewendetem Cluster, letztem angewendetem YAML, Szenario und letzter Ausgabe. Ein Fortschrittsreset löscht kein Lab. Beide Formate haben getrennte Sicherungen.
+Der bestehende IndexedDB-Schlüssel `kubelab-progress` verwendet Schema-Version 3. Version-1- und Version-2-Stände bleiben importierbar. Alte `completed`-Einträge werden zu `theoryCompleted`; Praxis beginnt ohne unbelegte Erfolge. Die frühere Version-1-Ausnahme für den neu erarbeiteten Control-Plane-Wissenscheck bleibt bestehen. Andere Lektionen, Theme, Checkpoints und Challenge-Erfolge bleiben erhalten. `practiceCompleted` speichert geprüfte Aufgaben als `Lektions-ID/Aufgaben-ID`. Reflexionsfragen erhalten keinen automatischen Abschluss. Die Oberfläche zeigt Theorie und Praxis getrennt.
+
+Das Lab verwendet weiterhin separat `kubelab-lab-v1` mit YAML-Entwurf, angewendetem Cluster, letztem angewendetem YAML, Szenario und letzter Ausgabe. Ein Fortschrittsreset löscht kein Lab. Beide Formate haben getrennte Sicherungen. Details und Autorenregeln stehen in [lesson-authoring.md](lesson-authoring.md).
 
 ## Modellgrenzen
 

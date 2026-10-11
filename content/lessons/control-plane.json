@@ -1,0 +1,203 @@
+{
+  "id": "control-plane",
+  "title": "Control Plane und Worker Nodes",
+  "description": "Zuständigkeiten, Kommunikationswege und die Grenzen der Rollen.",
+  "level": "Fundamentals",
+  "duration": 25,
+  "goals": [
+    "Koordination und Ausführung sauber trennen",
+    "API-basierte Kommunikation erklären",
+    "Eine kleine von einer hochverfügbaren Control Plane unterscheiden"
+  ],
+  "sources": [
+    {
+      "title": "Kubernetes-Komponenten",
+      "url": "https://kubernetes.io/docs/concepts/overview/components/"
+    },
+    {
+      "title": "Statische Pods",
+      "url": "https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/"
+    }
+  ],
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "03",
+  "category": "KUBERNETES ARCHITECTURE",
+  "reviewedOn": "2026-10-11",
+  "sections": [
+    {
+      "id": "intro",
+      "title": "1 · Das Problem verstehen",
+      "navLabel": "Einführung",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Die Control Plane nimmt Ziele entgegen und koordiniert ihre Umsetzung. Auf den Nodes führen kubelet und Container Runtime die zugewiesenen Pods aus. Die Rollen erklären Zuständigkeiten; sie sind keine unüberwindbare Trennung von Maschinentypen."
+        },
+        {
+          "type": "text",
+          "text": "Ein kubeadm-Control-Plane-Node hat ebenfalls kubelet und Runtime, unter anderem für statische Control-Plane-Pods. Ein standardmäßiger Taint verhindert typischerweise normale Workloads auf diesem Node. Eine Lab-Konfiguration kann anders aussehen als eine Produktionsplattform."
+        }
+      ]
+    },
+    {
+      "id": "deep-dive",
+      "title": "2 · Technischer Deep Dive",
+      "navLabel": "Deep Dive",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Der API Server verbindet die Regelkreise"
+        },
+        {
+          "type": "text",
+          "text": "Scheduler und Controller beobachten API-Objekte und schreiben Änderungen zurück über die API. Sie starten keine Container per direktem SSH-Aufruf auf einem Worker. kubelet beobachtet seine Zuweisungen und meldet den Status. Zugriff auf etcd erfolgt durch den API Server, nicht durch jeden Worker."
+        },
+        {
+          "type": "heading",
+          "text": "Node Agent und Runtime"
+        },
+        {
+          "type": "text",
+          "text": "kubelet führt podbezogene Aufgaben aus und kommuniziert über CRI mit einer Runtime wie containerd. CNI sorgt für Pod-Netzwerkanbindung; CSI integriert Volumes. Mehrere dieser Schritte können unabhängig scheitern, obwohl der Node erreichbar ist."
+        },
+        {
+          "type": "heading",
+          "text": "Eine Rolle ist keine HA-Garantie"
+        },
+        {
+          "type": "text",
+          "text": "Drei Worker schützen nicht gegen den Ausfall einer einzigen Control Plane. Mehrere API-Server-Instanzen brauchen einen erreichbaren API-Endpunkt; etcd benötigt Quorum. Scheduler und Controller verwenden in HA-Konfigurationen Leader Election. Details der Topologie gehören in die spätere HA-Planung."
+        }
+      ]
+    },
+    {
+      "id": "experiment",
+      "title": "3 · Erkunden und experimentieren",
+      "navLabel": "Experiment",
+      "blocks": [
+        {
+          "type": "experiment",
+          "id": "model",
+          "kind": "architecture"
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "title": "Deine Aufgabe",
+          "prompt": "Klicke im Architekturdiagramm auf jeden Bestandteil. Erkläre jeweils, wer dort Zustand speichert, plant oder ausführt.",
+          "hint": "Nur der API Server spricht direkt mit etcd; kubelet ist ein Node-Agent.",
+          "solution": "etcd speichert, die API vermittelt, Controller gleichen Soll/Ist ab, der Scheduler bindet Pods, kubelet koordiniert deren lokale Ausführung über die Runtime.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Ordne die Beobachtungen den passenden Zuständigkeiten zu. Die Prüfung wertet jede Zuordnung aus.",
+            "options": [
+              "etcd",
+              "API Server",
+              "Scheduler",
+              "kubelet",
+              "Controller"
+            ],
+            "items": [
+              {
+                "prompt": "Persistenz des Clusterzustands",
+                "answer": "etcd"
+              },
+              {
+                "prompt": "Zentrale API und Autorisierung",
+                "answer": "API Server"
+              },
+              {
+                "prompt": "Node-Zuweisung über die API schreiben",
+                "answer": "Scheduler"
+              },
+              {
+                "prompt": "Container über die Runtime betreuen",
+                "answer": "kubelet"
+              },
+              {
+                "prompt": "Fehlende Replikate ausgleichen",
+                "answer": "Controller"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "project",
+      "title": "4 · Im Teamboard-Projekt anwenden",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Teamboard bekommt zwei Worker für Workloads. Für ein echtes Enterprise-Design müssen wir die API-Erreichbarkeit und den etcd-Ausfallbereich separat planen."
+        },
+        {
+          "type": "text",
+          "text": "Zeichne die API-Kommunikation getrennt vom Anwendungsverkehr zwischen Frontend, Backend und PostgreSQL. Das Control-Plane-Diagramm ist kein Datenflussdiagramm für HTTP-Anfragen."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "5 · Fehleranalyse",
+          "text": "Wenn bestehende Pods laufen, neue aber nicht starten, untersuche zuerst, an welcher Koordinationsstufe der Fortschritt stoppt. Ein laufender Container beweist nicht, dass API, Scheduler und Controller gesund sind."
+        },
+        {
+          "type": "task",
+          "id": "expert",
+          "title": "Expert-Challenge · Transfer auf die Architektur",
+          "prompt": "Ist „auf Control-Plane-Nodes laufen niemals Pods“ richtig?",
+          "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+          "solution": "Nein. Bei kubeadm laufen Control-Plane-Komponenten typischerweise als statische Pods. Taints regeln die Zulassung weiterer Workloads, nicht die grundsätzliche Fähigkeit, Pods auszuführen.",
+          "verification": {
+            "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "6 · Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Wer startet Container über die Runtime-Schnittstelle?",
+              "answers": ["kubelet", "etcd", "kubectl"],
+              "correct": 0,
+              "explanation": "kubelet koordiniert die lokale Ausführung und verwendet CRI."
+            },
+            {
+              "id": "q2",
+              "prompt": "Wie kommuniziert der Scheduler seinen Platzierungsentscheid?",
+              "answers": [
+                "Per SSH zu containerd",
+                "Über die Kubernetes-API",
+                "Durch Änderung der Image-Datei"
+              ],
+              "correct": 1,
+              "explanation": "Die Bindung wird über die API geschrieben; kubelet beobachtet anschließend seine Zuweisung."
+            },
+            {
+              "id": "q3",
+              "prompt": "Drei Worker und eine Control Plane: Was bleibt ein Ausfallrisiko?",
+              "answers": [
+                "Zu viele Namespaces",
+                "Das Pod-Label app",
+                "Die einzelne Control Plane"
+              ],
+              "correct": 2,
+              "explanation": "Worker-Replikation ersetzt keine hochverfügbare Koordination und Zustandsverwaltung."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

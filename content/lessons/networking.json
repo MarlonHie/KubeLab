@@ -1,0 +1,126 @@
+{
+  "id": "networking",
+  "title": "Vom Pod zum Service",
+  "description": "Pod-Netz, Service-Selektoren, EndpointSlices und DNS gemeinsam verstehen.",
+  "category": "NETWORKING",
+  "duration": 20,
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "07",
+  "level": "Deep Dive",
+  "goals": [],
+  "sections": [
+    {
+      "id": "section-1",
+      "title": "Drei Ebenen für die Fehlersuche",
+      "navLabel": "Drei Ebenen für die Fehlersuche",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Ein Pod bekommt eine IP im Pod-Netz. Ein **Service** bietet einen stabilen logischen Zugang zu wechselnden Pod-Instanzen. **CoreDNS** macht Service-Namen auflösbar. Das CNI-Plugin richtet die Pod-Netzwerkanbindung ein; DNS ersetzt keine Netzwerkverbindung."
+        },
+        {
+          "type": "heading",
+          "text": "Wie ein Service seine Ziele findet"
+        },
+        {
+          "type": "text",
+          "text": "Ein Service-Selektor wird mit Pod-Labels im **gleichen Namespace** verglichen. Der EndpointSlice-Controller bildet die passenden Zieladressen ab; Readiness beeinflusst, welche Endpunkte regulär Verkehr erhalten. Ein Service mit `app: frontend` trifft keine Pods mit `app: backend`, auch wenn Namen und Ports plausibel aussehen."
+        },
+        {
+          "type": "text",
+          "text": "Ein Service ohne passende Endpunkte kann vollständig gültiges YAML sein. Schema-Prüfung allein findet diesen Betriebsfehler nicht."
+        },
+        {
+          "type": "heading",
+          "text": "Im Browser untersuchen"
+        },
+        {
+          "type": "text",
+          "text": "Öffne das Operations Lab und wähle **Service ohne Endpunkte**. Bestätige den definierten Startzustand. Du siehst zwei simulierte Pods, einen Service und zunächst null passende Endpunkte."
+        },
+        {
+          "type": "list",
+          "ordered": true,
+          "items": [
+            "Vergleiche den Service-Selektor mit den Labels der Pod-Vorlage.",
+            "Repariere die Zuordnung und wende den Entwurf simuliert an.",
+            "Beobachte die neuen Service-Verbindungen im Diagramm und die Endpunktzahl.",
+            "Prüfe die Aufgabe. Öffne denselben Cluster im Visualizer und kehre zum Editor zurück: Der Zustand bleibt erhalten."
+          ]
+        },
+        {
+          "type": "text",
+          "text": "**Simulationsgrenze:** Die Linien zeigen Label-Zuordnungen. Es werden keine DNS-Anfragen, Netzwerkpakete, Readiness-Probes oder eBPF-Programme ausgeführt."
+        },
+        {
+          "type": "heading",
+          "text": "Im echten Cluster prüfen"
+        },
+        {
+          "type": "text",
+          "text": "Diese lesenden Befehle gehören in das externe Terminal deiner Lab-VM:"
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "caption": "Befehle oder Manifest für das externe VM-Terminal.",
+          "code": "kubectl get services -A\nkubectl get pods -A -o wide --show-labels\nkubectl get endpointslices -A\nkubectl -n kube-system get deployment coredns"
+        },
+        {
+          "type": "text",
+          "text": "Prüfe zuerst Namespace, Labels und Endpunkte; untersuche danach DNS, CNI und Policies. Verwechsle `port` am Service nicht mit `targetPort` am Zielcontainer. Ein passender Selektor genügt nicht, wenn die Anwendung auf einem anderen Port lauscht."
+        },
+        {
+          "type": "heading",
+          "text": "Deine Aufgabe"
+        },
+        {
+          "type": "text",
+          "text": "Erkläre, warum `Running` nicht automatisch „über den Service erreichbar“ bedeutet. Nenne je einen Fehler in der Zuordnung, im Zielport und im Netzwerk."
+        },
+        {
+          "type": "text",
+          "text": "[Services](https://kubernetes.io/docs/concepts/services-networking/service/) · [EndpointSlices](https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/)"
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "answers": [
+                "Sein Selektor passt zu keinem Pod im gleichen Namespace",
+                "Jeder Service benötigt einen Ingress",
+                "CoreDNS muss für jeden Pod neu gestartet werden"
+              ],
+              "correct": 0,
+              "explanation": "Ein Service wählt Pods über Labels im selben Namespace. Ein falscher Selektor bleibt gültiges YAML, liefert aber keine passenden Endpunkte.",
+              "prompt": "Warum kann ein gültiger Service trotzdem keine Pod-Endpunkte haben?"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Services",
+      "url": "https://kubernetes.io/docs/concepts/services-networking/service/"
+    },
+    {
+      "title": "EndpointSlices",
+      "url": "https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

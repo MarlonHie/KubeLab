@@ -1,0 +1,200 @@
+{
+  "id": "etcd",
+  "title": "etcd, Desired State und Quorum",
+  "description": "Konsens, Revisionen und den Unterschied zwischen Ausfall und Datenverlust verstehen.",
+  "level": "Deep Dive",
+  "duration": 35,
+  "goals": [
+    "Mehrheitsquorum für drei und fünf Mitglieder berechnen",
+    "Leader-Ausfall von Mehrheitsverlust unterscheiden",
+    "Auswirkungen auf API und laufende Workloads begrenzen"
+  ],
+  "sources": [
+    {
+      "title": "etcd: Fehlermodi",
+      "url": "https://etcd.io/docs/v3.5/op-guide/failures/"
+    },
+    {
+      "title": "etcd: Datenmodell",
+      "url": "https://etcd.io/docs/v3.6/learning/data_model/"
+    },
+    {
+      "title": "Kubernetes API-Konzepte",
+      "url": "https://kubernetes.io/docs/reference/using-api/api-concepts/"
+    }
+  ],
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "03",
+  "category": "KUBERNETES ARCHITECTURE",
+  "reviewedOn": "2026-10-11",
+  "sections": [
+    {
+      "id": "intro",
+      "title": "1 · Das Problem verstehen",
+      "navLabel": "Einführung",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Kubernetes braucht einen dauerhaften, konsistenten Zustand, damit Komponenten nach einem Neustart weiterarbeiten können. etcd ist der verteilte Key-Value-Store hinter dieser Zustandsverwaltung. Er enthält Kubernetes-Objekte; er ersetzt nicht Teamboards PostgreSQL-Datenbank."
+        },
+        {
+          "type": "text",
+          "text": "Ein Schreibvorgang soll nicht auf zwei getrennten Seiten einer Netzpartition gleichzeitig widersprüchlich bestätigt werden. Raft organisiert deshalb Leader, Replikation und Mehrheitsentscheidungen."
+        }
+      ]
+    },
+    {
+      "id": "deep-dive",
+      "title": "2 · Technischer Deep Dive",
+      "navLabel": "Deep Dive",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Quorum und Replikation"
+        },
+        {
+          "type": "text",
+          "text": "Für N abstimmende Mitglieder braucht eine Mehrheit floor(N/2)+1 Stimmen. Drei Mitglieder tolerieren einen, fünf tolerieren zwei Ausfälle. Die benötigte Mehrheit wird aus der konfigurierten Mitgliedschaft berechnet, nicht einfach aus den gerade erreichbaren Mitgliedern. Learner und Änderungen der Mitgliedschaft werden im Experiment nicht modelliert."
+        },
+        {
+          "type": "heading",
+          "text": "Leader Election und Partitionen"
+        },
+        {
+          "type": "text",
+          "text": "Fällt der Leader aus, können die verbleibenden Mitglieder mit Mehrheit einen neuen wählen. Während der Wahl können Schreibvorgänge pausieren. Eine Minderheit darf keine neuen Änderungen allein bestätigen. Unser Simulator macht die Wahl durch eine bewusste Schaltfläche sichtbar; echte Wahlen verwenden Zeitgeber und Protokollregeln."
+        },
+        {
+          "type": "heading",
+          "text": "Revisionen und Watches"
+        },
+        {
+          "type": "text",
+          "text": "Änderungen an Schlüsseln führen zu steigenden Revisionen. Watches beobachten Änderungen ab einem Bezugspunkt; nach Kompaktierung kann ein erneuter List-/Watch-Aufbau nötig sein. Kubernetes-Clients benutzen API-resourceVersion als opaken Konsistenzbezug. Die hier angezeigte Zählrevision bildet weder vollständige MVCC-Transaktionen noch Kubernetes-resourceVersion-Semantik ab."
+        }
+      ]
+    },
+    {
+      "id": "experiment",
+      "title": "3 · Erkunden und experimentieren",
+      "navLabel": "Experiment",
+      "blocks": [
+        {
+          "type": "experiment",
+          "id": "model",
+          "kind": "quorum"
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "title": "Deine Aufgabe",
+          "prompt": "Schreibe eine Änderung, schalte den Leader aus und wähle bei verbliebener Mehrheit einen neuen. Schalte dann einen weiteren Knoten aus. Begründe, warum Schreiben nun stoppt.",
+          "hint": "Bei drei Mitgliedern bleibt die Mehrheit zwei, selbst wenn nur ein Mitglied erreichbar ist.",
+          "solution": "Nach einem Ausfall können zwei von drei Mitgliedern einen Leader wählen und Änderungen bestätigen. Nach zwei Ausfällen gibt es keine Mehrheit. Ein einzelnes Mitglied darf das Quorum nicht auf sich selbst verkleinern.",
+          "verification": {
+            "kind": "experiment",
+            "experimentId": "model",
+            "requirements": [
+              {
+                "event": "quorum.initial-write",
+                "label": "Änderung bei drei erreichbaren Mitgliedern bestätigt"
+              },
+              {
+                "event": "quorum.leader-missing",
+                "label": "Schreiben nach Leader-Ausfall blockiert"
+              },
+              {
+                "event": "quorum.recovered-write",
+                "label": "Nach neuer Wahl wieder erfolgreich geschrieben"
+              },
+              {
+                "event": "quorum.no-majority",
+                "label": "Schreibversuch ohne Mehrheit blockiert"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "project",
+      "title": "4 · Im Teamboard-Projekt anwenden",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Der Verlust von Quorum macht neue konsistente Schreibvorgänge unmöglich. Bereits laufende Container können weiterlaufen, sofern ihre lokalen Voraussetzungen bestehen. API-Leseverhalten hängt auch von Cache und gewünschter Konsistenz ab; „alle Reads funktionieren“ wäre ebenso falsch wie „alle Pods stoppen sofort“."
+        },
+        {
+          "type": "text",
+          "text": "Snapshots, gesicherte Wiederherstellungsverfahren und getrennte Fehlerdomänen sind Teil der späteren Enterprise-Planung. Mehr Mitglieder ersetzen keine Datensicherung."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "5 · Fehleranalyse",
+          "text": "Prüfe Mitgliedererreichbarkeit, Leader, Disk-Latenz und Zertifikate, bevor du Mitglieder entfernst. Eine Recovery nach Mehrheitsverlust muss dem etcd-Wiederherstellungsverfahren folgen; nicht mehrere unabhängige Wahrheiten erzwingen."
+        },
+        {
+          "type": "task",
+          "id": "expert",
+          "title": "Expert-Challenge · Transfer auf die Architektur",
+          "prompt": "Warum toleriert ein Cluster mit vier abstimmenden Mitgliedern nicht mehr Ausfälle als einer mit drei?",
+          "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+          "solution": "Vier benötigen drei Stimmen und tolerieren deshalb ebenfalls nur einen Ausfall. Fünf benötigen auch drei, können aber zwei Ausfälle verkraften.",
+          "verification": {
+            "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "6 · Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Wie viele Stimmen braucht ein Cluster mit drei abstimmenden Mitgliedern?",
+              "answers": [
+                "Eine, sobald die anderen ausfallen",
+                "Zwei",
+                "Immer drei"
+              ],
+              "correct": 1,
+              "explanation": "Die Mehrheit ist zwei von drei und schrumpft nicht bei Ausfällen."
+            },
+            {
+              "id": "q2",
+              "prompt": "Was ist nach einem Leader-Ausfall bei zwei verbleibenden Mitgliedern möglich?",
+              "answers": [
+                "Eine neue Leader-Wahl und danach weitere Writes",
+                "Sofortige Löschung aller Pods",
+                "Automatische PostgreSQL-Wiederherstellung"
+              ],
+              "correct": 0,
+              "explanation": "Die Mehrheit besteht weiter; während der Leader-Wahl kann es eine Pause geben."
+            },
+            {
+              "id": "q3",
+              "prompt": "Welche Aussage über etcd-Ausfall ist korrekt?",
+              "answers": [
+                "Jeder laufende Container muss sofort stoppen",
+                "Worker schreiben ersatzweise direkt in eigene etcd-Dateien",
+                "Bestehende Container können weiterlaufen; neue Zustandsänderungen sind eingeschränkt"
+              ],
+              "correct": 2,
+              "explanation": "Koordinationsausfall und lokale Workload-Ausführung sind getrennte Ebenen."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

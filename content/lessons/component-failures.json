@@ -1,0 +1,211 @@
+{
+  "id": "component-failures",
+  "title": "Was passiert bei einem Komponenten- oder Node-Ausfall?",
+  "description": "Fehlerdomänen, verbleibende Fähigkeiten und Recovery-Grenzen begründet beurteilen.",
+  "level": "Expert",
+  "duration": 35,
+  "goals": [
+    "Koordinationsausfall von Workload-Ausfall trennen",
+    "Den Umfang einer Störung aus der Topologie ableiten",
+    "Recovery ohne falsche Sofortgarantien planen"
+  ],
+  "sources": [
+    {
+      "title": "Nodes und Node Controller",
+      "url": "https://kubernetes.io/docs/concepts/architecture/nodes/"
+    },
+    {
+      "title": "Pod Disruptions",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/disruptions/"
+    },
+    {
+      "title": "etcd-Fehlermodi",
+      "url": "https://etcd.io/docs/v3.5/op-guide/failures/"
+    }
+  ],
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "03",
+  "category": "KUBERNETES ARCHITECTURE",
+  "reviewedOn": "2026-10-11",
+  "sections": [
+    {
+      "id": "intro",
+      "title": "1 · Das Problem verstehen",
+      "navLabel": "Einführung",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Enterprise-Planung beginnt mit konkreten Ausfallszenarien. „Kubernetes heilt sich selbst“ ist dafür zu ungenau. Welche Komponente fehlt, welche Instanzen existieren weiterhin und welche Daten sind noch verfügbar?"
+        },
+        {
+          "type": "text",
+          "text": "Unser Failure Simulator betrachtet eine kleine Control Plane ohne redundante Ersatzinstanzen und zwei Worker. Er beschreibt Fähigkeiten, keine garantierten Wiederherstellungszeiten. Netzwerkpartitionen können schwieriger sein als ein sauber ausgeschalteter Prozess."
+        }
+      ]
+    },
+    {
+      "id": "deep-dive",
+      "title": "2 · Technischer Deep Dive",
+      "navLabel": "Deep Dive",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Ausfall der Koordination"
+        },
+        {
+          "type": "text",
+          "text": "Ohne erreichbaren API Server können normale Clients und Regelkreise keinen regulären API-Fortschritt erzielen. Ohne Scheduler bleiben neue ungebundene Pods ungeplant. Ohne zuständigen Controller können fehlende Replikate unerkannt oder unbearbeitet bleiben. Bereits laufende Container werden dadurch nicht pauschal sofort beendet."
+        },
+        {
+          "type": "heading",
+          "text": "Worker-Ausfall und Ersatz"
+        },
+        {
+          "type": "text",
+          "text": "Auf einem tatsächlich ausgeschalteten Worker laufen seine Container nicht weiter. Die Control Plane muss den Ausfall erst erkennen und entsprechend ihren Regeln reagieren. Ersatz braucht Controller, Scheduler, passende Kapazität und gegebenenfalls nutzbare Volumes. Eine Pod-Identität wandert nicht unverändert auf einen anderen Node."
+        },
+        {
+          "type": "heading",
+          "text": "Stateful Recovery und Quorum"
+        },
+        {
+          "type": "text",
+          "text": "Bei etcd entscheidet die verbliebene Mehrheit über konsistente Writes. Bei PostgreSQL gelten zusätzlich die Regeln des Datenbank-Operators, Replikationszustand, Storage-Zugriff und Schutz vor konkurrierenden Primärinstanzen. Ein Kubernetes-Pod-Neustart ist keine vollständige Datenbank-Recovery."
+        }
+      ]
+    },
+    {
+      "id": "experiment",
+      "title": "3 · Erkunden und experimentieren",
+      "navLabel": "Experiment",
+      "blocks": [
+        {
+          "type": "experiment",
+          "id": "model",
+          "kind": "failure"
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "title": "Deine Aufgabe",
+          "prompt": "Vergleiche Scheduler-, API- und Worker-Ausfall. Begründe jeweils, ob bestehende Container weiterlaufen können, neue Pods platziert werden können und welche Diagnose zuerst sinnvoll ist.",
+          "hint": "Frage getrennt nach gespeicherten Zielen, Planung, lokaler Ausführung und Datenzugriff.",
+          "solution": "Scheduler-Ausfall blockiert neue automatische Bindungen, API-Ausfall die normale zentrale Koordination, Worker-Ausfall die lokalen Workloads dieses Nodes. Ersatz und Wiederherstellungszeit sind keine sofortige Garantie.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Ordne die Beobachtungen den passenden Zuständigkeiten zu. Die Prüfung wertet jede Zuordnung aus.",
+            "options": [
+              "Scheduler-Ausfall",
+              "API-Ausfall",
+              "worker-01 ausgeschaltet",
+              "Controller-Ausfall",
+              "etcd-Quorumverlust"
+            ],
+            "items": [
+              {
+                "prompt": "Neue ungebundene Pods erhalten keine automatische Node-Zuweisung",
+                "answer": "Scheduler-Ausfall"
+              },
+              {
+                "prompt": "Normale API-Schreibvorgänge sind blockiert",
+                "answer": "API-Ausfall"
+              },
+              {
+                "prompt": "Lokale Container auf worker-01 stoppen",
+                "answer": "worker-01 ausgeschaltet"
+              },
+              {
+                "prompt": "Fehlende ReplicaSet-Pods werden nicht ersetzt",
+                "answer": "Controller-Ausfall"
+              },
+              {
+                "prompt": "Zustandsänderungen können ohne Mehrheit nicht bestätigt werden",
+                "answer": "etcd-Quorumverlust"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "project",
+      "title": "4 · Im Teamboard-Projekt anwenden",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Plane für Teamboard eine Ausfallmatrix: Control Plane, Worker, Netzwerk, Storage und Datenbank. Dokumentiere, welche Redundanz, Kapazität und Backups jede Fehlerdomäne abdecken."
+        },
+        {
+          "type": "text",
+          "text": "Ein späterer Wiederherstellungstest muss Anwendungsdaten und Zugriff prüfen, nicht bloß grüne Node-Zustände. Das ist eine Betriebsanforderung, die reine Browsermodelle nicht beweisen können."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "5 · Fehleranalyse",
+          "text": "Trenne fehlende Beobachtbarkeit von tatsächlichem Workload-Ausfall. Bei unerreichbarem Node kann der letzte gemeldete Status veraltet sein. Erzwinge bei Datenbanken keine zweite Primärinstanz, bevor Fencing und Datenzustand geklärt sind."
+        },
+        {
+          "type": "task",
+          "id": "expert",
+          "title": "Expert-Challenge · Transfer auf die Architektur",
+          "prompt": "Ein API-Endpunkt ist nicht erreichbar, Nutzer können Teamboard aber weiter bedienen. Warum ist das plausibel und trotzdem kritisch?",
+          "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+          "solution": "Bestehende Datenpfade und Container können weiterarbeiten. Änderungen, neue Platzierungen, Fehlerkorrektur und verlässliche Statusbeobachtung sind jedoch eingeschränkt; der nächste Workload-Ausfall kann sich nicht normal erholen.",
+          "verification": {
+            "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "6 · Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Was blockiert ein alleiniger Scheduler-Ausfall typischerweise zuerst?",
+              "answers": [
+                "Neue automatische Node-Zuweisungen",
+                "Alle bestehenden TCP-Verbindungen",
+                "Sämtliche etcd-Lesezugriffe"
+              ],
+              "correct": 0,
+              "explanation": "Bereits gebundene und laufende Pods hängen nicht bei jeder Aktion vom Scheduler ab."
+            },
+            {
+              "id": "q2",
+              "prompt": "Was braucht Ersatz nach einem Worker-Ausfall zusätzlich zu einem Deployment?",
+              "answers": [
+                "Nur einen neuen Namespace",
+                "Funktionsfähige Koordination, Kapazität und nötige Abhängigkeiten",
+                "Eine manuelle Umbenennung des ausgefallenen Pods"
+              ],
+              "correct": 1,
+              "explanation": "Ein Sollzustand kann nur mit geeigneten Ressourcen und erreichbaren Abhängigkeiten erfüllt werden."
+            },
+            {
+              "id": "q3",
+              "prompt": "Welche Aussage ist eine belastbare Enterprise-Planung?",
+              "answers": [
+                "Drei beliebige Pods beweisen HA",
+                "Ein grüner Node beweist Datenwiederherstellung",
+                "Redundanz und Recovery werden pro Fehlerdomäne und Datenpfad geprüft"
+              ],
+              "correct": 2,
+              "explanation": "Verfügbarkeit und Wiederherstellung sind Systemeigenschaften und müssen entsprechend geprüft werden."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

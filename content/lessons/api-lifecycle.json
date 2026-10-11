@@ -1,0 +1,200 @@
+{
+  "id": "api-lifecycle",
+  "title": "kube-apiserver: der Lebenszyklus einer Anfrage",
+  "description": "Identität, Berechtigung, Admission und Persistenz getrennt untersuchen.",
+  "level": "Deep Dive",
+  "duration": 30,
+  "goals": [
+    "Authentifizierung von Autorisierung unterscheiden",
+    "Admission in den Schreibpfad einordnen",
+    "Ablehnungen ohne Änderung des Sollzustands erklären"
+  ],
+  "sources": [
+    {
+      "title": "API-Autorisierung",
+      "url": "https://kubernetes.io/docs/reference/access-authn-authz/authorization/"
+    },
+    {
+      "title": "Admission Controller",
+      "url": "https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/"
+    },
+    {
+      "title": "Server-side apply",
+      "url": "https://kubernetes.io/docs/reference/using-api/server-side-apply/"
+    }
+  ],
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "03",
+  "category": "KUBERNETES ARCHITECTURE",
+  "reviewedOn": "2026-10-11",
+  "sections": [
+    {
+      "id": "intro",
+      "title": "1 · Das Problem verstehen",
+      "navLabel": "Einführung",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Ein Aufruf von kubectl ist ein API-Client-Aufruf. Zuerst muss die Verbindung zum vorgesehenen API-Endpunkt funktionieren. Danach entscheidet der Server, welche Identität hinter der Anfrage steht und ob diese Identität die Operation ausführen darf."
+        },
+        {
+          "type": "text",
+          "text": "Teamboards Deployment ist ein gutes Beispiel: Ein gültiges Zertifikat beweist eine Identität, aber es verleiht nicht automatisch die Berechtigung, Deployments in einem bestimmten Namespace zu erstellen."
+        }
+      ]
+    },
+    {
+      "id": "deep-dive",
+      "title": "2 · Technischer Deep Dive",
+      "navLabel": "Deep Dive",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Authentifizierung und Autorisierung"
+        },
+        {
+          "type": "text",
+          "text": "Authentifizierung ordnet Anmeldedaten einer Identität zu. Autorisierung bewertet die gewünschte Operation auf einer Ressource, etwa create auf deployments im Namespace teamboard. RBAC ist ein verbreiteter Autorisierungsmechanismus. Fehlende Berechtigung wird nicht dadurch behoben, dass man YAML-Felder umsortiert."
+        },
+        {
+          "type": "heading",
+          "text": "Admission und Objektprüfung"
+        },
+        {
+          "type": "text",
+          "text": "Für schreibende Anfragen können mutierende Admission-Regeln Daten ergänzen und validierende Regeln eine Änderung ablehnen. Schema-, Defaulting-, Conversion- und Admission-Schritte sind ressourcen- und versionsabhängig; der Explorer fasst diese bewusst zu groben Stufen zusammen. Ein erfolgreicher Lesezugriff durchläuft nicht denselben mutierenden Schreibpfad."
+        },
+        {
+          "type": "heading",
+          "text": "Annahme und Nebenwirkungen"
+        },
+        {
+          "type": "text",
+          "text": "Nach erfolgreicher Prüfung wird die akzeptierte Änderung persistiert und eine Antwort geliefert. Controller reagieren anschließend auf beobachtete API-Änderungen. Ein Ressourcenversionskonflikt kann einen erneuten Lese- und Schreibversuch erfordern. Server-side apply verwaltet außerdem Feldbesitz; konkurrierende Feldmanager können Konflikte auslösen."
+        }
+      ]
+    },
+    {
+      "id": "experiment",
+      "title": "3 · Erkunden und experimentieren",
+      "navLabel": "Experiment",
+      "blocks": [
+        {
+          "type": "experiment",
+          "id": "model",
+          "kind": "api"
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "title": "Deine Aufgabe",
+          "prompt": "Sende im Explorer zuerst eine Anfrage ohne gültige Identität, dann ohne Berechtigung und zuletzt mit einer abgelehnten Admission-Prüfung. Wann ändert sich der gespeicherte Zustand?",
+          "hint": "Ein abgelehnter Schreibvorgang darf keine erfolgreiche Persistenz vortäuschen.",
+          "solution": "Nur der vollständig akzeptierte Schreibpfad erhöht die Modellrevision. Authentifizierung, Autorisierung und Admission können den Pfad jeweils vorher stoppen.",
+          "verification": {
+            "kind": "experiment",
+            "experimentId": "model",
+            "requirements": [
+              {
+                "event": "api.identity-rejected",
+                "label": "Anfrage ohne gültige Identität abgelehnt"
+              },
+              {
+                "event": "api.permission-rejected",
+                "label": "Anfrage ohne Berechtigung abgelehnt"
+              },
+              {
+                "event": "api.admission-rejected",
+                "label": "Anfrage durch Admission abgelehnt"
+              },
+              {
+                "event": "api.accepted",
+                "label": "Vollständig gültige Anfrage angenommen"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "project",
+      "title": "4 · Im Teamboard-Projekt anwenden",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Für Teamboards GitOps-Controller werden spätere Berechtigungen auf seine benötigten Ressourcen und Namespaces zugeschnitten. API-Zugang und Anwendungszugang sind verschiedene Sicherheitsflächen."
+        },
+        {
+          "type": "text",
+          "text": "Im echten Cluster hilft kubectl auth can-i bei Autorisierungsfragen; API-Antwort, Events und Admission-Fehler liefern unterschiedliche Hinweise. Der Browser-Explorer sendet keine echten API-Anfragen."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "5 · Fehleranalyse",
+          "text": "Unterscheide Verbindungsfehler, 401, 403 und Admission-Ablehnung. Ein Timeout kann auch einen unbekannten Ausgang haben: Prüfe den tatsächlichen Objektzustand, bevor du eine Änderung blind wiederholst."
+        },
+        {
+          "type": "task",
+          "id": "expert",
+          "title": "Expert-Challenge · Transfer auf die Architektur",
+          "prompt": "Ein Deployment-Apply liefert Erfolg, aber die später erzeugten Pods werden von einer Policy abgelehnt. Ist das ein Widerspruch?",
+          "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+          "solution": "Nein. Deployment und Pod sind unterschiedliche API-Objekte und Schreibvorgänge. Ein Controller kann beim späteren Erzeugen der Pods auf deren eigene Admission-Regeln stoßen.",
+          "verification": {
+            "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "6 · Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Was prüft Autorisierung?",
+              "answers": [
+                "Ob ein Container Ready ist",
+                "Ob die Identität diese Operation ausführen darf",
+                "Ob ein Node genügend RAM hat"
+              ],
+              "correct": 1,
+              "explanation": "Autorisierung prüft Rechte auf API-Operationen; sie ist weder Scheduling noch Readiness."
+            },
+            {
+              "id": "q2",
+              "prompt": "Eine Admission-Regel lehnt ein Pod-Objekt ab. Was darfst du daraus folgern?",
+              "answers": [
+                "Genau dieser Schreibvorgang wurde nicht erfolgreich angenommen",
+                "etcd hat zwingend Quorum verloren",
+                "Alle Pods des Clusters wurden gelöscht"
+              ],
+              "correct": 0,
+              "explanation": "Die Ablehnung betrifft die geprüfte Anfrage. Sie ist keine globale Zustandsaussage."
+            },
+            {
+              "id": "q3",
+              "prompt": "Warum kann ein Controller nach erfolgreichem Deployment-Apply trotzdem keine Pods erzeugen?",
+              "answers": [
+                "Er benutzt immer SSH",
+                "Deployments enthalten keine Pod-Vorlage",
+                "Pod-Erstellung unterliegt eigenen Prüfungen und Berechtigungen"
+              ],
+              "correct": 2,
+              "explanation": "Die Folgeobjekte entstehen in separaten API-Operationen mit eigenen möglichen Fehlern."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

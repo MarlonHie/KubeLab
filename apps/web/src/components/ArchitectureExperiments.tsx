@@ -9,7 +9,15 @@ import {
 } from "lucide-react";
 import { ClusterGraph } from "./ClusterGraph";
 import { Reconciliation } from "./Reconciliation";
-import type { Experiment } from "../../../../content/architecture/lessons";
+import type { Experiment } from "../../../../packages/lesson-engine/src/types";
+import type { ReportEvidence } from "../../../../packages/lesson-engine/src/experiments";
+import {
+  quorumWriteEvidence,
+  apiEvidence,
+  schedulerEvidence,
+  runtimeEvidence,
+} from "../../../../packages/simulation-engine/src/evidence";
+type EvidenceProps = { onEvidence?: ReportEvidence };
 import {
   initialQuorum,
   majority,
@@ -44,7 +52,7 @@ function Frame({
     </section>
   );
 }
-export function QuorumSimulator() {
+export function QuorumSimulator({ onEvidence }: EvidenceProps) {
   const [state, setState] = useState(initialQuorum);
   const [message, setMessage] = useState(
     "Ein Leader und drei erreichbare Mitglieder.",
@@ -104,6 +112,8 @@ export function QuorumSimulator() {
         <button
           className="button primary"
           onClick={() => {
+            const event = quorumWriteEvidence(state);
+            if (event) onEvidence?.(event);
             setState((s) => commitWrite(s));
             setMessage(
               canCommit(state)
@@ -129,6 +139,7 @@ export function QuorumSimulator() {
         <button
           className="button secondary"
           onClick={() => {
+            onEvidence?.(null);
             setState(initialQuorum());
             setMessage("Experiment zurückgesetzt.");
           }}
@@ -141,7 +152,7 @@ export function QuorumSimulator() {
     </Frame>
   );
 }
-export function ApiExplorer() {
+export function ApiExplorer({ onEvidence }: EvidenceProps) {
   const [identity, setIdentity] = useState(true);
   const [authorized, setAuthorized] = useState(true);
   const [admitted, setAdmitted] = useState(true);
@@ -178,6 +189,7 @@ export function ApiExplorer() {
         onClick={() => {
           const next = apiRequest(identity, authorized, admitted);
           setResult(next);
+          onEvidence?.(apiEvidence(identity, authorized, admitted));
           if (next.accepted) setRevision((n) => n + 1);
         }}
       >
@@ -213,7 +225,7 @@ export function ApiExplorer() {
     </Frame>
   );
 }
-export function SchedulerPlayground() {
+export function SchedulerPlayground({ onEvidence }: EvidenceProps) {
   const [cpu, setCpu] = useState(1);
   const [forced, setForced] = useState("auto");
   const [taint, setTaint] = useState(false);
@@ -279,6 +291,17 @@ export function SchedulerPlayground() {
           </div>
         ))}
       </div>
+      {onEvidence && (
+        <button
+          className="button secondary"
+          onClick={() => {
+            const event = schedulerEvidence(cpu, forced, taint, tolerated);
+            if (event) onEvidence(event);
+          }}
+        >
+          Zustand für Aufgabe prüfen
+        </button>
+      )}
       <p role="status">
         {selected
           ? `Im Modell gewählt: ${selected.name}`
@@ -373,7 +396,7 @@ export function RequestFlow() {
     </Frame>
   );
 }
-export function RuntimeExplorer() {
+export function RuntimeExplorer({ onEvidence }: EvidenceProps) {
   const [network, setNetwork] = useState(true);
   const [volume, setVolume] = useState(true);
   const [image, setImage] = useState(true);
@@ -415,6 +438,17 @@ export function RuntimeExplorer() {
           </span>
         ))}
       </div>
+      {onEvidence && (
+        <button
+          className="button secondary"
+          onClick={() => {
+            const event = runtimeEvidence(network, volume, image, ready);
+            if (event) onEvidence(event);
+          }}
+        >
+          Zustand für Aufgabe prüfen
+        </button>
+      )}
       <p role="status">
         <strong>{result.title}</strong> · {result.detail}
       </p>
@@ -458,7 +492,10 @@ export function FailureSimulator() {
     </Frame>
   );
 }
-export function ArchitectureExperiment({ kind }: { kind: Experiment }) {
+export function ArchitectureExperiment({
+  kind,
+  onEvidence,
+}: { kind: Experiment } & EvidenceProps) {
   if (kind === "architecture")
     return (
       <Frame
@@ -468,10 +505,11 @@ export function ArchitectureExperiment({ kind }: { kind: Experiment }) {
         <ClusterGraph />
       </Frame>
     );
-  if (kind === "quorum") return <QuorumSimulator />;
-  if (kind === "api") return <ApiExplorer />;
-  if (kind === "scheduler") return <SchedulerPlayground />;
-  if (kind === "runtime") return <RuntimeExplorer />;
+  if (kind === "quorum") return <QuorumSimulator onEvidence={onEvidence} />;
+  if (kind === "api") return <ApiExplorer onEvidence={onEvidence} />;
+  if (kind === "scheduler")
+    return <SchedulerPlayground onEvidence={onEvidence} />;
+  if (kind === "runtime") return <RuntimeExplorer onEvidence={onEvidence} />;
   if (kind === "flow") return <RequestFlow />;
   if (kind === "failure") return <FailureSimulator />;
   return <Reconciliation />;

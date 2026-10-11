@@ -1,4 +1,4 @@
-# Content First · Entwicklungsstand 0.2
+# Content First · Entwicklungsstand 0.2.1
 
 Priorität: technische Tiefe und praktisches Verständnis vor dem lokalen Agenten. Keine Benutzerverwaltung oder kostenpflichtige Infrastruktur in dieser Phase. 80–120 Lektionen sind ein Planungsrahmen, kein bereits ausgelieferter Umfang.
 
@@ -33,6 +33,10 @@ Modul 03 ist das ausgearbeitete Referenzmodul. Für 01, 02 und 07 bestehen Einf�
 ## Durchgehendes Praxisprojekt
 
 „Teamboard“ verbindet Frontend, Backend-API und PostgreSQL. Das Referenzmodul verwendet diese Anwendung als Architekturbeispiel. Später folgen HPA, Storage, Zalando Postgres Operator, Prometheus, Argo CD und Kyverno. Diese Zielarchitektur wird derzeit weder im Browser noch auf echten Clustern installiert.
+
+## Content-System 0.2.1
+
+Alle vorhandenen Lektionen verwenden das deklarative Blockformat. Theorie und überprüfte Modellaufgaben erhalten getrennte Fortschritte, vorhandene Stände werden migriert. Die Einführungen wurden formal migriert, noch nicht inhaltlich zu vollständigen Grundlagenmodulen ausgebaut. Siehe [Autorenhandbuch](lesson-authoring.md).
 
 ## Weitere Werkzeuge
 

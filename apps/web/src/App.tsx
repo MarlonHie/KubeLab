@@ -1,9 +1,5 @@
 import { Academy } from "./pages/Academy";
-import { ArchitectureLesson } from "./pages/ArchitectureLesson";
-import { architectureLessons } from "../../../content/architecture/lessons";
-import Networking from "../../../content/networking/services.mdx";
-import Cilium from "../../../content/networking/cilium.mdx";
-import { Reconciliation } from "./components/Reconciliation";
+import { LessonPage } from "./pages/LessonPage";
 import { LabBackup } from "./components/LabBackup";
 import { Badge, Heading } from "./components/Page";
 import { Operations } from "./pages/Operations";
@@ -52,13 +48,15 @@ import {
   X,
 } from "lucide-react";
 import { useProgress, parseProgress } from "./stores/progress";
-import { lessons, phases } from "../../../packages/lesson-engine/src";
+import {
+  lessons,
+  phases,
+  practiceTasks,
+  practiceMastered,
+} from "../../../packages/lesson-engine/src";
 import { schedule } from "../../../packages/cluster-model/src";
 import { ClusterGraph } from "./components/ClusterGraph";
 import { buildSteps } from "./pages/buildSteps";
-import Linux from "../../../content/fundamentals/linux.mdx";
-import Containers from "../../../content/fundamentals/containers.mdx";
-import ControlPlane from "../../../content/fundamentals/control-plane.mdx";
 const nav = [
   { to: "/", label: "Übersicht", icon: LayoutDashboard },
   { to: "/academy", label: "Academy", icon: BookOpen },
@@ -78,7 +76,9 @@ function App() {
     setMenu(false);
     window.scrollTo(0, 0);
   }, [location.pathname]);
-  const pct = Math.round((progress.completed.length / lessons.length) * 100);
+  const pct = Math.round(
+    (progress.theoryCompleted.length / lessons.length) * 100,
+  );
   return (
     <>
       <a className="skip-link" href="#main">
@@ -143,7 +143,7 @@ function App() {
             <ExternalLink size={13} />
           </a>
           <div className="sidebar-footer">
-            KubeLab <span>v0.2 · Local first</span>
+            KubeLab <span>v0.2.1 · Local first</span>
           </div>
         </div>
       </aside>
@@ -244,9 +244,13 @@ function App() {
 function Dashboard({ pct }: { pct: number }) {
   const p = useProgress();
   const next =
-    lessons.find((l) => l.id === p.lastLesson && !p.completed.includes(l.id)) ||
-    lessons.find((l) => l.moduleId === "03" && !p.completed.includes(l.id)) ||
-    lessons.find((l) => !p.completed.includes(l.id)) ||
+    lessons.find(
+      (l) => l.id === p.lastLesson && !p.theoryCompleted.includes(l.id),
+    ) ||
+    lessons.find(
+      (l) => l.moduleId === "03" && !p.theoryCompleted.includes(l.id),
+    ) ||
+    lessons.find((l) => !p.theoryCompleted.includes(l.id)) ||
     lessons[2];
   return (
     <>
@@ -283,7 +287,7 @@ function Dashboard({ pct }: { pct: number }) {
             </div>
             <Link className="button white" to={`/academy/${next.id}`}>
               <Play size={16} />
-              {p.completed.length ? "Weiterlernen" : "Lernen starten"}
+              {p.theoryCompleted.length ? "Weiterlernen" : "Lernen starten"}
             </Link>
           </div>
           <div
@@ -335,15 +339,25 @@ function Dashboard({ pct }: { pct: number }) {
                 {pct}
                 <small>%</small>
               </strong>
-              <span>Lektionen</span>
+              <span>Theorie</span>
             </div>
           </div>
           <p>
             <strong>
-              {p.completed.length} von {lessons.length}
+              {p.theoryCompleted.length} von {lessons.length}
             </strong>{" "}
-            Lektionen abgeschlossen
+            Theorieabschlüsse
           </p>
+          <div className="progress-stats">
+            <span>Praxis gemeistert</span>
+            <strong>
+              {
+                lessons.filter((l) => practiceMastered(l, p.practiceCompleted))
+                  .length
+              }{" "}
+              / {lessons.filter((l) => practiceTasks(l).length > 0).length}
+            </strong>
+          </div>
           <div className="progress-stats">
             <span>
               <CheckCircle2 size={17} />
@@ -479,133 +493,11 @@ function Dashboard({ pct }: { pct: number }) {
 }
 function Lesson() {
   const { id } = useParams();
-  const architecture = architectureLessons.find((l) => l.id === id);
-  if (architecture)
-    return <ArchitectureLesson key={id} lesson={architecture} />;
   const lesson = lessons.find((l) => l.id === id);
-  if (!lesson) return <Navigate to="/academy" replace />;
-  return <LessonBody key={id} lesson={lesson} />;
-}
-function LessonBody({ lesson }: { lesson: (typeof lessons)[number] }) {
-  const p = useProgress();
-  const [answer, setAnswer] = useState<number | null>(null);
-  const [checked, check] = useState(false);
-  useEffect(() => {
-    p.update({ lastLesson: lesson.id });
-  }, [lesson.id]);
-  const contentModules: Record<string, React.ComponentType> = {
-    linux: Linux,
-    containers: Containers,
-    "control-plane": ControlPlane,
-    networking: Networking,
-    cilium: Cilium,
-  };
-  const Content = contentModules[lesson.id];
-  const next = lessons[lessons.indexOf(lesson) + 1];
-  return (
-    <>
-      <Link className="text-link back-link" to="/academy">
-        Academy / Lernpfad
-      </Link>
-      <Heading
-        eyebrow={`MODUL ${lesson.moduleId} · ${lesson.category}`}
-        title={lesson.title}
-        description={`${lesson.duration} Minuten · Konzept → Erkunden → Aufgabe → Wissenscheck`}
-      />
-      <div className="lesson-layout">
-        <article className="prose panel">
-          <Content />
-          {lesson.id === "control-plane" && (
-            <>
-              <Reconciliation />
-              <Scheduler />
-            </>
-          )}
-          <section className="quiz">
-            <div className="eyebrow">WISSENSCHECK</div>
-            <h3>{lesson.question}</h3>
-            <fieldset>
-              <legend className="sr-only">Wähle eine Antwort</legend>
-              {lesson.answers.map((a, i) => (
-                <label
-                  className={`quiz-option ${answer === i ? "chosen" : ""}`}
-                  key={a}
-                >
-                  <input
-                    type="radio"
-                    name="quiz"
-                    checked={answer === i}
-                    onChange={() => {
-                      setAnswer(i);
-                      check(false);
-                    }}
-                  />
-                  {a}
-                </label>
-              ))}
-            </fieldset>
-            <button
-              className="button primary"
-              disabled={answer === null}
-              onClick={() => {
-                check(true);
-                if (answer === lesson.correct)
-                  p.update({
-                    completed: [...new Set([...p.completed, lesson.id])],
-                  });
-              }}
-            >
-              Antwort prüfen
-            </button>
-            {checked && (
-              <div
-                className={`notice ${answer === lesson.correct ? "success" : "warning"}`}
-                role="status"
-              >
-                {answer === lesson.correct
-                  ? "Richtig! Deine Lektion ist abgeschlossen. "
-                  : "Noch nicht ganz. "}
-                {lesson.explanation}
-              </div>
-            )}
-          </section>
-          {p.completed.includes(lesson.id) && (
-            <Link
-              className="button secondary"
-              to={next ? `/academy/${next.id}` : "/build"}
-            >
-              {next ? "Nächstes Modul" : "Weiter zum Build Lab"}
-            </Link>
-          )}
-        </article>
-        <aside className="lesson-aside panel">
-          <span className="feature-icon blue">
-            <GraduationCap size={22} />
-          </span>
-          <h3>Dein Lernpfad</h3>
-          {lessons.map((l, i) => (
-            <Link
-              className={l.id === lesson.id ? "current" : ""}
-              to={`/academy/${l.id}`}
-              key={l.id}
-            >
-              <span>
-                {p.completed.includes(l.id) ? (
-                  <Check size={16} />
-                ) : (
-                  String(i + 1).padStart(2, "0")
-                )}
-              </span>
-              {l.title}
-            </Link>
-          ))}
-          <div className="notice">
-            <HardDrive size={17} />
-            Dein Fortschritt wird auf diesem Gerät gespeichert.
-          </div>
-        </aside>
-      </div>
-    </>
+  return lesson ? (
+    <LessonPage lesson={lesson} />
+  ) : (
+    <Navigate to="/academy" replace />
   );
 }
 function Scheduler() {
@@ -957,9 +849,20 @@ function Settings() {
             <HardDrive size={22} />
           </span>
           <h2>Dein Lernstand</h2>
+          <p data-testid="progress-save-status">
+            {p.saveStatus === "saved"
+              ? "Lernstand lokal gespeichert"
+              : p.saveStatus === "pending"
+                ? "Lernstand wird gespeichert …"
+                : p.saveStatus === "error"
+                  ? "Lernstand nicht gespeichert"
+                  : "Lernstand wird geladen …"}
+          </p>
           <p>
-            {p.completed.length} Lektionen · {p.checkpoints.length} Lab-Schritte
-            · {p.completedChallenges.length} Challenges abgeschlossen
+            {p.theoryCompleted.length} Theorieabschlüsse ·{" "}
+            {p.practiceCompleted.length} Praxisaufgaben · {p.checkpoints.length}{" "}
+            Lab-Schritte · {p.completedChallenges.length} Challenges
+            abgeschlossen
           </p>
           <p>
             Der Lernstand liegt in IndexedDB in diesem Browser. Exportiere ihn
@@ -1008,9 +911,9 @@ function Settings() {
           </span>
           <h2>Neu anfangen</h2>
           <p>
-            Setze abgeschlossene Lektionen, Lab-Schritte und Challenges auf
-            diesem Gerät zurück. Exportiere vorher einen Lernstand, den du
-            behalten möchtest.
+            Setze Theorieabschlüsse, Praxisnachweise, Lab-Schritte und
+            Challenges auf diesem Gerät zurück. Exportiere vorher einen
+            Lernstand, den du behalten möchtest.
           </p>
           {!confirm ? (
             <button

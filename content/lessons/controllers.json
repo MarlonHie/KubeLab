@@ -1,0 +1,211 @@
+{
+  "id": "controllers",
+  "title": "Controller Manager und Reconciliation",
+  "description": "Warum Kubernetes wiederholt auf Ziele hinarbeitet und nicht nur Befehle ausführt.",
+  "level": "Deep Dive",
+  "duration": 30,
+  "goals": [
+    "Deployment-, ReplicaSet- und Pod-Ebene trennen",
+    "Idempotente Regelkreise erklären",
+    "Null Replikate von einem Ausfall unterscheiden"
+  ],
+  "sources": [
+    {
+      "title": "Controller",
+      "url": "https://kubernetes.io/docs/concepts/architecture/controller/"
+    },
+    {
+      "title": "Deployments",
+      "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+    },
+    {
+      "title": "ReplicaSets",
+      "url": "https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/"
+    }
+  ],
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "03",
+  "category": "KUBERNETES ARCHITECTURE",
+  "reviewedOn": "2026-10-11",
+  "sections": [
+    {
+      "id": "intro",
+      "title": "1 · Das Problem verstehen",
+      "navLabel": "Einführung",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Ein Controller ist ein Regelkreis: beobachten, Zielabweichung bestimmen, eine geeignete Änderung veranlassen und erneut beobachten. Sein Blick kann veraltet sein. Die nächste Ausführung muss deshalb mit bereits erledigter Arbeit und parallelen Änderungen umgehen."
+        },
+        {
+          "type": "text",
+          "text": "Für Teamboards Backend beschreibt das Deployment die gewünschte Bereitstellung. Der Deployment-Controller verwaltet ReplicaSets, und der ReplicaSet-Controller kümmert sich um die Anzahl der zugehörigen Pod-Objekte. Der Controller Manager beherbergt mehrere solcher Controller."
+        }
+      ]
+    },
+    {
+      "id": "deep-dive",
+      "title": "2 · Technischer Deep Dive",
+      "navLabel": "Deep Dive",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Objekte statt direkter Prozesssteuerung"
+        },
+        {
+          "type": "text",
+          "text": "Ein ReplicaSet-Controller fordert fehlende Pods über den API Server an. Er wählt nicht deren Node und startet nicht deren Runtime. OwnerReferences verknüpfen abhängige Ressourcen für Verwaltung und Garbage Collection. Labels allein sind keine vollständige Besitzbeziehung."
+        },
+        {
+          "type": "heading",
+          "text": "Wiederholung und Konflikte"
+        },
+        {
+          "type": "text",
+          "text": "Controller benutzen beobachteten Zustand und versuchen, ihre Zuständigkeit schrittweise zu erfüllen. Bei vorübergehenden Fehlern sind Wiederholungen mit Begrenzung und Backoff sinnvoll. Reconciliation bedeutet nicht eine global garantierte Reihenfolge aller Komponenten und nicht, dass jeder Fehler sofort geheilt wird."
+        },
+        {
+          "type": "heading",
+          "text": "Rollout und Bereitschaft"
+        },
+        {
+          "type": "text",
+          "text": "Bei einer neuen Pod-Vorlage kann ein Deployment ein neues ReplicaSet verwalten. Rollout-Einstellungen steuern die Zahl alter und neuer Instanzen. Existierende Pod-Objekte, laufende Container und bereite Anwendungsinstanzen sind verschiedene Zählungen; eine Readiness-Prüfung kann das Erreichen des Ziels verhindern."
+        }
+      ]
+    },
+    {
+      "id": "experiment",
+      "title": "3 · Erkunden und experimentieren",
+      "navLabel": "Experiment",
+      "blocks": [
+        {
+          "type": "experiment",
+          "id": "model",
+          "kind": "reconciliation"
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "title": "Deine Aufgabe",
+          "prompt": "Gehe von einer zu drei bereiten Instanzen durch den Regelkreis. Simuliere danach einen Ausfall. Nenne für jeden Übergang die verantwortliche Komponente.",
+          "hint": "Der Controller erzeugt Objekte; Scheduler und kubelet erledigen andere Schritte.",
+          "solution": "Controller fordern fehlende Pod-Objekte an, Scheduler binden diese, kubelet/Runtime starten die Container, Readiness und Status liefern neue Beobachtungen. Der nächste Regelkreis prüft erneut.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Ordne die Beobachtungen den passenden Zuständigkeiten zu. Die Prüfung wertet jede Zuordnung aus.",
+            "options": [
+              "Deployment-Controller",
+              "ReplicaSet-Controller",
+              "Scheduler",
+              "kubelet / Runtime",
+              "Readiness-Probe"
+            ],
+            "items": [
+              {
+                "prompt": "Ein ReplicaSet für die Deployment-Vorlage verwalten",
+                "answer": "Deployment-Controller"
+              },
+              {
+                "prompt": "Zwei fehlende Pod-Objekte erzeugen lassen",
+                "answer": "ReplicaSet-Controller"
+              },
+              {
+                "prompt": "Die neuen Pods auf Nodes binden",
+                "answer": "Scheduler"
+              },
+              {
+                "prompt": "Container für zugewiesene Pods starten lassen",
+                "answer": "kubelet / Runtime"
+              },
+              {
+                "prompt": "Die Anwendungsbereitschaft prüfen",
+                "answer": "Readiness-Probe"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "project",
+      "title": "4 · Im Teamboard-Projekt anwenden",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Im Operations Lab bleibt ein auf replicas: 0 skaliertes Deployment absichtlich ohne Pods. Die Aufgabe „Verschwundene Workloads“ prüft, ob du den falschen Sollzustand erkennst."
+        },
+        {
+          "type": "text",
+          "text": "Selbstheilung von Teamboards Backend ersetzt keine korrekte Datenbankmigration. Ein Controller kann denselben fehlerhaften Container immer wieder erstellen."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "5 · Fehleranalyse",
+          "text": "Wenn ein Deployment existiert, aber keine Pods entstehen, untersuche ReplicaSets, Events, Admission und das gewünschte Replikat-Ziel. Mehrfaches Apply desselben unveränderten Manifests löst diese Ursachen nicht automatisch."
+        },
+        {
+          "type": "task",
+          "id": "expert",
+          "title": "Expert-Challenge · Transfer auf die Architektur",
+          "prompt": "Warum muss ein Controller nach einem Timeout erneut lesen, statt eine Erstellung blind beliebig oft zu wiederholen?",
+          "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+          "solution": "Der erste Schreibvorgang könnte erfolgreich gewesen sein, obwohl seine Antwort verloren ging. Eine erneute Beobachtung und eindeutige Objektidentitäten verhindern unnötige oder doppelte Arbeit.",
+          "verification": {
+            "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "6 · Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Wer erzeugt normalerweise die Pod-Objekte eines ReplicaSets?",
+              "answers": [
+                "Der ReplicaSet-Controller",
+                "Der Scheduler",
+                "CoreDNS"
+              ],
+              "correct": 0,
+              "explanation": "Der Scheduler platziert vorhandene ungebundene Pods; er erzeugt nicht die gewünschte Replikatanzahl."
+            },
+            {
+              "id": "q2",
+              "prompt": "Ein Deployment hat replicas: 0. Was sollte der Controller erreichen?",
+              "answers": [
+                "Drei Pods als Sicherheitsreserve",
+                "Null zugehörige aktive Pods",
+                "Einen automatischen Fehlerstatus wegen ungültiger YAML"
+              ],
+              "correct": 1,
+              "explanation": "Null ist ein gültiger Sollzustand. Für die Anwendung kann er trotzdem unerwünscht sein."
+            },
+            {
+              "id": "q3",
+              "prompt": "Was garantiert Reconciliation nicht?",
+              "answers": [
+                "Wiederholtes Vergleichen von Ziel und Beobachtung",
+                "API-basierte Änderungen",
+                "Sofortige Behebung beliebiger Anwendungsfehler"
+              ],
+              "correct": 2,
+              "explanation": "Eine kaputte Konfiguration oder Anwendung kann dauerhaft ein unerreichtes Ziel verursachen."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

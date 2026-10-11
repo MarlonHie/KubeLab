@@ -1,0 +1,145 @@
+{
+  "id": "cilium",
+  "title": "Netzwerkregeln mit Cilium",
+  "description": "CNI, eBPF und eine gezielte NetworkPolicy-Übung auf deinem echten Lab-Cluster.",
+  "category": "NETWORKING",
+  "duration": 30,
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "07",
+  "level": "Deep Dive",
+  "goals": [],
+  "sections": [
+    {
+      "id": "section-1",
+      "title": "Cilium verbindet und kontrolliert Pod-Verkehr",
+      "navLabel": "Cilium verbindet und kontrolliert Pod-Verkehr",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Cilium ist in unserem kubeadm-Lab das CNI-Plugin. Es verwendet unter anderem eBPF für Teile des Datenpfads und unterstützt Netzwerkrichtlinien. Der Cilium-Agent läuft auf den Nodes; der Operator übernimmt clusterweite Aufgaben. **Hubble** ergänzt die Beobachtung von Netzwerkflüssen und muss dafür gesondert aktiviert werden."
+        },
+        {
+          "type": "text",
+          "text": "Unser Lab bleibt bei Cilium 1.19.0 mit VXLAN und laufendem kube-proxy. Die optionale vollständige kube-proxy-Ersetzung ist eine andere Konfiguration und kein notwendiger Schritt für dieses Modul."
+        },
+        {
+          "type": "heading",
+          "text": "Voraussetzungen und Ausführungsort"
+        },
+        {
+          "type": "text",
+          "text": "**Echte Ausführung im externen VM-Terminal.** Verwende den isolierten Drei-VM-Cluster aus dem Build Lab. Alle Nodes und Cilium-Pods müssen bereit sein. Diese Übung wird nicht vom Browserterminal ausgeführt. Nutze ausschließlich den dedizierten Namespace `kubelab-net`."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "caption": "Befehle oder Manifest für das externe VM-Terminal.",
+          "code": "kubectl -n kube-system get pods -l k8s-app=cilium -o wide\nkubectl -n kube-system rollout status daemonset/cilium\nkubectl create namespace kubelab-net\nkubectl -n kubelab-net create deployment web --image=nginx:1.28\nkubectl -n kubelab-net expose deployment web --port=80\nkubectl -n kubelab-net rollout status deployment/web\nkubectl -n kubelab-net run client --image=busybox:1.37 --restart=Never --labels=role=client --command -- sleep 3600\nkubectl -n kubelab-net wait --for=condition=Ready pod/client --timeout=120s\nkubectl -n kubelab-net exec client -- wget -T 5 -qO- http://web"
+        },
+        {
+          "type": "text",
+          "text": "Erwartung: Die letzte Zeile liefert die nginx-Seite. Falls nicht, stoppe vor der Policy-Übung und prüfe DNS, Service-Endpunkte und Cilium-Status."
+        },
+        {
+          "type": "heading",
+          "text": "Einen gezielten Netzwerkfehler erzeugen"
+        },
+        {
+          "type": "text",
+          "text": "Speichere dieses Manifest als `deny-web.yaml` in deiner Lab-VM und führe dort `kubectl apply -f deny-web.yaml` aus. Es isoliert ausschließlich eingehenden Verkehr der ausgewählten Web-Pods im Übungsnamespace. DNS-Egress des Clients wird davon nicht gesperrt."
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "external",
+          "caption": "Befehle oder Manifest für das externe VM-Terminal.",
+          "code": "apiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: deny-web-ingress\n  namespace: kubelab-net\nspec:\n  podSelector:\n    matchLabels:\n      app: web\n  policyTypes:\n    - Ingress\n  ingress: []"
+        },
+        {
+          "type": "text",
+          "text": "Wiederhole den HTTP-Aufruf. Nach der Policy-Übernahme sollte er mit einem Timeout scheitern. Eine weiterhin erfolgreiche Anfrage kann auf noch nicht übernommene Regeln, nicht passende Labels oder fehlende Policy-Durchsetzung hinweisen."
+        },
+        {
+          "type": "heading",
+          "text": "Die Verbindung gezielt erlauben"
+        },
+        {
+          "type": "text",
+          "text": "Erstelle eine zweite Policy `allow-client` im selben Namespace, mit demselben Zielselektor `app: web`. Ihre `ingress`-Regel soll nur Quellen mit dem Pod-Label `role: client` und TCP-Zielport 80 zulassen. Kubernetes-NetworkPolicies sind additiv: Die passende Allow-Policy öffnet diesen Verkehr trotz der weiterhin vorhandenen leeren Ingress-Policy."
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "external",
+          "caption": "Befehle oder Manifest für das externe VM-Terminal.",
+          "code": "apiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-client\n  namespace: kubelab-net\nspec:\n  podSelector:\n    matchLabels:\n      app: web\n  policyTypes: [Ingress]\n  ingress:\n    - from:\n        - podSelector:\n            matchLabels:\n              role: client\n      ports:\n        - protocol: TCP\n          port: 80"
+        },
+        {
+          "type": "heading",
+          "text": "Prüfen, erklären, zurücksetzen"
+        },
+        {
+          "type": "text",
+          "text": "Die HTTP-Anfrage soll wieder erfolgreich sein. Entferne testweise das Client-Label mit `kubectl -n kubelab-net label pod client role-` und prüfe, dass der Zugriff nach der Policy-Übernahme wieder scheitert. Erkläre, warum die Quelle und nicht nur das Ziel relevant ist."
+        },
+        {
+          "type": "text",
+          "text": "Setze ausschließlich diese Übung zurück:"
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "caption": "Befehle oder Manifest für das externe VM-Terminal.",
+          "code": "kubectl delete namespace kubelab-net"
+        },
+        {
+          "type": "text",
+          "text": "Die automatische KubeLab-Prüfung dieses Moduls ist ein Wissenscheck. Ein bestandenes Quiz bestätigt nicht, dass die Netzwerkübung auf deinen VMs funktioniert hat."
+        },
+        {
+          "type": "text",
+          "text": "[Cilium-Policy-Grundlagen](https://docs.cilium.io/en/stable/security/policy/intro/) · [Kubernetes-NetworkPolicies](https://kubernetes.io/docs/concepts/services-networking/network-policies/)"
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "answers": [
+                "Sie sperrt automatisch DNS-Egress aller Pods",
+                "Sie isoliert eingehenden Verkehr; passende weitere Allow-Policies können ihn erlauben",
+                "Sie löscht die Services der Pods"
+              ],
+              "correct": 1,
+              "explanation": "Die Policy betrifft Ingress der ausgewählten Pods. Kubernetes-NetworkPolicies wirken additiv; Egress wird hier nicht isoliert.",
+              "prompt": "Was macht eine Ingress-Policy mit leerer ingress-Liste für die ausgewählten Pods?"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Cilium-Policy-Grundlagen",
+      "url": "https://docs.cilium.io/en/stable/security/policy/intro/"
+    },
+    {
+      "title": "Kubernetes-NetworkPolicies",
+      "url": "https://kubernetes.io/docs/concepts/services-networking/network-policies/"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

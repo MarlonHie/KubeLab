@@ -26,6 +26,7 @@ npm run preview
 ## Enthalten
 
 - Dashboard, responsive Navigation, Hell-/Dunkelmodus.
+- Einheitliches Content-System: deklarative JSON-Lektionen, schema-geprüfte Text-, Code-, YAML-, Tabellen-, Hinweis-, Experiment-, Aufgaben- und Quizblöcke.
 - Referenzmodul **03 Kubernetes Architecture**: neun ausführliche Lektionen, 27 Verständnisfragen, Praxisaufgaben, Fehleranalyse und Expert-Challenges. Einheitlicher Aufbau mit Lernzielen, Deep Dive, Experiment und begründeten Lösungen.
 - Academy mit 16 Themenbereichen, Niveau-/Themenfiltern und Suche. Insgesamt 13 verfügbare Lektionen: das Referenzmodul sowie Einführungen in Linux, Container, Services und Cilium. Weitere Inhalte sind ausdrücklich geplant.
 - Interaktive Modelle für Architektur, API-Prüfung, etcd-Quorum, Reconciliation, Scheduling, Node-Runtime, Request-Ablauf und Komponentenausfälle; jedes nennt seine Vereinfachungen.
@@ -37,7 +38,7 @@ npm run preview
 
 Der Browser führt keine echten Shell-Befehle aus. Das Operations Lab prüft nur einen Teil des Kubernetes-Schemas und nimmt erfolgreiche Containerstarts an. Die separaten Architekturmodelle veranschaulichen ausgewählte Fehlerbedingungen. Simulation und externe echte Ausführung sind in der Oberfläche gekennzeichnet. Der kubeadm-Leitfaden ist weiterhin **nicht vollständig auf echten VMs verifiziert**; dieser Arbeitsschritt ist zugunsten von Content First zurückgestellt. Es gibt keinen lokalen Agenten, keine Benutzerverwaltung und keine kostenpflichtige Infrastruktur.
 
-Browserdaten können gelöscht werden; JSON-Exporte dienen als Sicherung. Version-1-Fortschritt wird migriert: Die alte einzelne Control-Plane-Frage zählt nicht als Abschluss der neuen dreiteiligen Wissensprüfung. Andere Abschlüsse bleiben erhalten.
+Browserdaten können gelöscht werden; JSON-Exporte dienen als Sicherung. Fortschrittsformat 3 trennt **Theorie verstanden** und **Praxis gemeistert**. Vorhandene Stände aus Version 1 und 2 bleiben importierbar und werden migriert; alte Quizabschlüsse vergeben keine Praxisnachweise. Die bisherige Ausnahme für den alten Version-1-Control-Plane-Wissenscheck bleibt erhalten. Reflexionsfragen und externe Übungen werden nicht automatisch als Praxis abgeschlossen.
 
 Siehe [aktuellen Content-Plan](docs/architecture/content-first.md), [Implementierung](docs/architecture/implementation.md), [Sicherheitsgrenzen](docs/security/README.md) und [ursprünglichen Gesamtentwurf](docs/architecture/roadmap.md).
 
@@ -53,6 +54,6 @@ Zielrepository: https://github.com/MarlonHie/KubeLab. Die Veröffentlichung ben�
 
 ## Beiträge und Lizenz
 
-Das Referenzformat liegt typisiert in `content/architecture/lessons.ts`; Ansicht und wiederverwendbare Experimente liegen unter `apps/web/src/pages/ArchitectureLesson.tsx` und `apps/web/src/components/ArchitectureExperiments.tsx`. Bestehende Einführungen verwenden MDX. Neue Inhalte müssen Lernziele, technische Erklärung, Modellgrenzen, Praxis, Lösungen und Primärquellen enthalten. Simulationsänderungen mit den Tests in `tests/` prüfen. Fachreview und Kollegen-Beta bleiben eigene Qualitätsschritte; automatisierte Tests ersetzen sie nicht.
+Alle 13 Lektionen liegen einzeln in `content/lessons/` und werden über `catalog.ts` registriert. Die gemeinsame Ansicht heißt `LessonPage.tsx`; neue Lektionen benötigen keine eigene React-Seite. Das [Autorenhandbuch](docs/architecture/lesson-authoring.md) beschreibt Blöcke, Prüfungen, IDs und Datenmigration. Neue Inhalte müssen technische Erklärung, Modellgrenzen, Praxis, Lösungen und Primärquellen enthalten. Fachreview und Kollegen-Beta bleiben eigene Qualitätsschritte; automatisierte Tests ersetzen sie nicht.
 
 MIT-Lizenz, siehe [LICENSE](LICENSE).

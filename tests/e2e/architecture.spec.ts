@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { architectureLessons } from "../../content/architecture/lessons";
+import { architectureLessons, quizFor } from "../../packages/lesson-engine/src";
 async function edit(page: Page, source: string) {
   await page.locator(".monaco-editor").click();
   await page.keyboard.press("ControlOrMeta+A");
@@ -63,7 +63,7 @@ test("three correct answers are required and reference completion survives reloa
 }) => {
   const lesson = architectureLessons[0];
   await page.goto("/#/academy/" + lesson.id);
-  for (const [i, q] of lesson.questions.entries())
+  for (const [i, q] of quizFor(lesson).questions.entries())
     await page
       .locator(".architecture-question")
       .nth(i)
@@ -73,22 +73,27 @@ test("three correct answers are required and reference completion survives reloa
       .check();
   await page.getByRole("button", { name: "Wissenscheck auswerten" }).click();
   await expect(
-    page.getByText("Noch nicht abgeschlossen.", { exact: false }),
+    page.getByText("Theorie noch nicht abgeschlossen.", { exact: false }),
   ).toBeVisible();
   await page
     .locator(".architecture-question")
     .first()
-    .getByLabel(lesson.questions[0].answers[lesson.questions[0].correct], {
-      exact: true,
-    })
+    .getByLabel(
+      quizFor(lesson).questions[0].answers[
+        quizFor(lesson).questions[0].correct
+      ],
+      {
+        exact: true,
+      },
+    )
     .check();
   await page.getByRole("button", { name: "Wissenscheck auswerten" }).click();
   await expect(
-    page.getByText("Alle drei Antworten sind richtig.", { exact: false }),
+    page.getByText("Alle Antworten sind richtig.", { exact: false }),
   ).toBeVisible();
   await page.reload();
-  await expect(page.locator(".page-heading .badge")).toHaveText(
-    "Abgeschlossen",
+  await expect(page.getByTestId("theory-status")).toHaveText(
+    "Theorie verstanden",
   );
 });
 test("invalid draft and applied cluster persist separately across route and reload", async ({

@@ -1,9 +1,14 @@
-import { lessons } from "../../../../packages/lesson-engine/src";
+import {
+  lessons,
+  practiceTasks,
+  practiceKey,
+} from "../../../../packages/lesson-engine/src";
 import { create } from "zustand";
 import { get, set } from "idb-keyval";
 export interface Progress {
-  version: 2;
-  completed: string[];
+  version: 3;
+  theoryCompleted: string[];
+  practiceCompleted: string[];
   checkpoints: number[];
   challenge: boolean;
   completedChallenges: string[];
@@ -11,67 +16,92 @@ export interface Progress {
   theme: "light" | "dark";
 }
 const defaults: Progress = {
-  version: 2,
-  completed: [],
+  version: 3,
+  theoryCompleted: [],
+  practiceCompleted: [],
   checkpoints: [],
   challenge: false,
   completedChallenges: [],
   lastLesson: "cluster-basics",
   theme: "light",
 };
+const lessonIds = new Set(lessons.map((l) => l.id));
+const taskIds = new Set(
+  lessons.flatMap((l) => practiceTasks(l).map((t) => practiceKey(l.id, t.id))),
+);
+const validIds = (value: unknown, allowed: Set<string>): value is string[] =>
+  Array.isArray(value) &&
+  value.every((id) => typeof id === "string" && allowed.has(id));
 export function parseProgress(value: unknown): Progress {
-  const v = value as Progress;
+  if (!value || typeof value !== "object")
+    throw new Error("Ungültiger KubeLab-Lernstand.");
+  const v = value as Record<string, unknown>;
+  const legacy = v.version === 1 || v.version === 2;
+  const theory = legacy ? v.completed : v.theoryCompleted;
   if (
-    !v ||
-    ![1, 2].includes(v.version) ||
-    !Array.isArray(v.completed) ||
-    !v.completed.every((x) => lessons.some((l) => l.id === x)) ||
+    (!legacy && v.version !== 3) ||
+    !validIds(theory, lessonIds) ||
+    (!legacy && !validIds(v.practiceCompleted, taskIds)) ||
     !Array.isArray(v.checkpoints) ||
     !v.checkpoints.every((x) => Number.isInteger(x) && x >= 0 && x < 7) ||
     typeof v.challenge !== "boolean" ||
     (v.completedChallenges !== undefined &&
-      (!Array.isArray(v.completedChallenges) ||
-        !v.completedChallenges.every((id) =>
-          ["selector", "service", "replicas"].includes(id),
-        ))) ||
-    !lessons.some((l) => l.id === v.lastLesson) ||
-    !["light", "dark"].includes(v.theme)
+      !validIds(
+        v.completedChallenges,
+        new Set(["selector", "service", "replicas"]),
+      )) ||
+    typeof v.lastLesson !== "string" ||
+    !lessonIds.has(v.lastLesson) ||
+    !["light", "dark"].includes(v.theme as string)
   )
     throw new Error(
-      "Ungültige KubeLab-Fortschrittsdatei (Version 1 oder 2 erwartet).",
+      "Ungültige KubeLab-Fortschrittsdatei (Version 1, 2 oder 3 erwartet).",
     );
   return {
-    version: 2,
-    completed: [...new Set(v.completed)].filter(
-      (id) => !(Number(v.version) === 1 && id === "control-plane"),
+    version: 3,
+    theoryCompleted: [...new Set(theory)].filter(
+      (id) => !(v.version === 1 && id === "control-plane"),
     ),
-    checkpoints: [...new Set(v.checkpoints)],
+    practiceCompleted: legacy
+      ? []
+      : [...new Set(v.practiceCompleted as string[])],
+    checkpoints: [...new Set(v.checkpoints as number[])],
     challenge: v.challenge,
     completedChallenges: [
-      ...new Set(v.completedChallenges || (v.challenge ? ["selector"] : [])),
+      ...new Set(
+        (v.completedChallenges as string[] | undefined) ||
+          (v.challenge ? ["selector"] : []),
+      ),
     ],
     lastLesson: v.lastLesson,
-    theme: v.theme,
+    theme: v.theme as Progress["theme"],
   };
 }
 let queue = Promise.resolve();
+let generation = 0;
 function save(progress: Progress) {
+  const current = ++generation;
+  useProgress.setState({ saveStatus: "pending" });
   queue = queue
     .then(() => set("kubelab-progress", progress))
     .then(() => {
-      useProgress.setState({ error: "" });
+      if (current === generation)
+        useProgress.setState({ error: "", saveStatus: "saved" });
     })
     .catch(() => {
-      useProgress.setState({
-        error:
-          "Dein Browser verhindert die Speicherung. Bitte exportiere deinen Lernstand vor dem Schließen.",
-      });
+      if (current === generation)
+        useProgress.setState({
+          saveStatus: "error",
+          error:
+            "Dein Browser verhindert die Speicherung. Bitte exportiere deinen Lernstand vor dem Schließen.",
+        });
     });
 }
 export const useProgress = create<
   Progress & {
     ready: boolean;
     error: string;
+    saveStatus: "loading" | "pending" | "saved" | "error";
     update: (p: Partial<Progress>) => void;
     reset: () => void;
   }
@@ -79,6 +109,7 @@ export const useProgress = create<
   ...defaults,
   ready: false,
   error: "",
+  saveStatus: "loading",
   update: (p) => {
     const next = parseProgress({ ...useProgress.getState(), ...p });
     setState(next);
@@ -92,11 +123,17 @@ export const useProgress = create<
 export async function hydrate() {
   try {
     const data = await get("kubelab-progress");
-    if (data) useProgress.setState(parseProgress(data));
+    if (data !== undefined) {
+      const migrated = parseProgress(data);
+      useProgress.setState(migrated);
+      if (data.version !== 3) save(migrated);
+      else useProgress.setState({ saveStatus: "saved" });
+    } else useProgress.setState({ saveStatus: "saved" });
   } catch {
     useProgress.setState({
+      saveStatus: "error",
       error:
-        "Lokaler Lernstand konnte nicht geladen werden. Exportiere deinen Fortschritt zur Sicherung.",
+        "Lokaler Lernstand konnte nicht geladen werden. Er wurde nicht überschrieben. Importiere eine Sicherung oder setze den Lernstand bewusst zurück.",
     });
   } finally {
     useProgress.setState({ ready: true });

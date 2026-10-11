@@ -9,8 +9,13 @@ import {
   Layers3,
   Database,
 } from "lucide-react";
-import { lessons, curriculum } from "../../../../packages/lesson-engine/src";
-import { architectureLessons } from "../../../../content/architecture/lessons";
+import {
+  lessons,
+  curriculum,
+  architectureLessons,
+  practiceTasks,
+  practiceMastered,
+} from "../../../../packages/lesson-engine/src";
 import { useProgress } from "../stores/progress";
 import { Badge, Heading } from "../components/Page";
 export function Academy() {
@@ -28,7 +33,7 @@ export function Academy() {
         .includes(query.toLowerCase()),
   );
   const completed = architectureLessons.filter((l) =>
-    p.completed.includes(l.id),
+    p.theoryCompleted.includes(l.id),
   ).length;
   return (
     <>
@@ -49,13 +54,22 @@ export function Academy() {
           <div className="inline-actions">
             <Link
               className="button primary"
-              to={`/academy/${architectureLessons.find((l) => !p.completed.includes(l.id))?.id || "cluster-basics"}`}
+              to={`/academy/${architectureLessons.find((l) => !p.theoryCompleted.includes(l.id))?.id || "cluster-basics"}`}
             >
               {completed
                 ? "Im Referenzmodul weiterlernen"
                 : "Referenzmodul starten"}
             </Link>
-            <Badge color="green">{completed} / 9 abgeschlossen</Badge>
+            <Badge color="green">Theorie: {completed} / 9</Badge>
+            <Badge color="blue">
+              Praxis:{" "}
+              {
+                architectureLessons.filter((l) =>
+                  practiceMastered(l, p.practiceCompleted),
+                ).length
+              }{" "}
+              / 9
+            </Badge>
           </div>
         </div>
         <Network size={76} />
@@ -125,11 +139,22 @@ export function Academy() {
               <div className="eyebrow">{l.level}</div>
               <h3>{l.title}</h3>
               <p>{l.description}</p>
+              <p className="lesson-card-progress">
+                {p.theoryCompleted.includes(l.id)
+                  ? "Theorie verstanden"
+                  : "Theorie offen"}{" "}
+                ·{" "}
+                {practiceMastered(l, p.practiceCompleted)
+                  ? "Praxis gemeistert"
+                  : practiceTasks(l).length
+                    ? "Praxis offen"
+                    : "Praxis nicht automatisch geprüft"}
+              </p>
               <span className="subtle">
                 <Clock3 size={14} /> {l.duration} Min.
               </span>
             </div>
-            {p.completed.includes(l.id) ? (
+            {p.theoryCompleted.includes(l.id) ? (
               <CheckCircle2 className="result-ok" size={22} />
             ) : (
               <BookOpen size={20} />

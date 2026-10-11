@@ -4,24 +4,26 @@ test("learning completion survives reload, export, reset, and import", async ({
 }) => {
   await page.goto("/#/academy/linux");
   await page.getByLabel("cgroups", { exact: true }).check();
-  await page.getByRole("button", { name: "Antwort prüfen" }).click();
-  await expect(page.getByRole("status")).toContainText("Richtig");
+  await page.getByRole("button", { name: "Wissenscheck auswerten" }).click();
+  await expect(page.getByRole("status")).toContainText("Theorie verstanden");
   await page.reload();
-  await expect(
-    page.getByRole("link", { name: "Nächstes Modul" }),
-  ).toBeVisible();
+  await expect(page.getByTestId("theory-status")).toBeVisible();
   await page.goto("/#/settings");
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Exportieren", exact: true }).click();
   const file = await (await download).path();
   await page.getByRole("button", { name: "Lernstand zurücksetzen" }).click();
   await page.getByRole("button", { name: "Ja, zurücksetzen" }).click();
-  await expect(page.getByText("0 Lektionen · 0 Lab-Schritte")).toBeVisible();
+  await expect(
+    page.getByText("0 Theorieabschlüsse · 0 Praxisaufgaben · 0 Lab-Schritte"),
+  ).toBeVisible();
   await page.getByLabel("Lernstand importieren").setInputFiles(file!);
   await expect(page.getByRole("status")).toContainText(
     "erfolgreich importiert",
   );
-  await expect(page.getByText("1 Lektionen · 0 Lab-Schritte")).toBeVisible();
+  await expect(
+    page.getByText("1 Theorieabschlüsse · 0 Praxisaufgaben · 0 Lab-Schritte"),
+  ).toBeVisible();
 });
 test("Monaco applies manifests and terminal scales resources", async ({
   page,

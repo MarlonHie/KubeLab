@@ -1,0 +1,233 @@
+{
+  "id": "apply-to-pod",
+  "title": "Von kubectl apply zum bereiten Pod",
+  "description": "Alle Zuständigkeiten zu einem Ende-zu-Ende-Ablauf verbinden.",
+  "level": "Fundamentals",
+  "duration": 30,
+  "goals": [
+    "Den gesamten logischen Ablauf erklären",
+    "Objekte und Prozesse in der richtigen Reihenfolge zuordnen",
+    "Den ersten blockierten Übergang diagnostizieren"
+  ],
+  "sources": [
+    {
+      "title": "Deployments",
+      "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+    },
+    {
+      "title": "Pod-Lebenszyklus",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+    }
+  ],
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "03",
+  "category": "KUBERNETES ARCHITECTURE",
+  "reviewedOn": "2026-10-11",
+  "sections": [
+    {
+      "id": "intro",
+      "title": "1 · Das Problem verstehen",
+      "navLabel": "Einführung",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Jetzt verbinden wir die Bausteine. Du wendest Teamboards Backend-Deployment an. Danach entstehen über mehrere Regelkreise die Ressourcen und schließlich Container. Die Komponenten arbeiten asynchron; ein vereinfachter Ablauf hilft, ihre Zuständigkeiten zu verstehen."
+        },
+        {
+          "type": "text",
+          "text": "Der Request Flow zeigt deshalb einen logischen Pfad, keine synchrone Aufrufkette. Die Bestätigung des Deployment-Schreibens liegt weit vor einer möglichen Readiness des neuen Pods."
+        }
+      ]
+    },
+    {
+      "id": "deep-dive",
+      "title": "2 · Technischer Deep Dive",
+      "navLabel": "Deep Dive",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Drei unterschiedliche Arten von Fortschritt"
+        },
+        {
+          "type": "text",
+          "text": "API-Fortschritt: das Ziel wurde angenommen. Controller-Fortschritt: ReplicaSet und Pod-Objekte existieren. Ausführungsfortschritt: ein Node ist zugewiesen, Container starten und werden bereit. Jede Ebene besitzt eigene Fehler und Beobachtungen."
+        },
+        {
+          "type": "heading",
+          "text": "Beobachtungen zusammenführen"
+        },
+        {
+          "type": "text",
+          "text": "Deployment-, ReplicaSet- und Pod-Status beschreiben unterschiedliche Objekte. Events ergänzen Ursachen, sind aber kein unbegrenzt haltbares Audit-Log. Im echten Cluster kombinierst du Objektstatus, Events und bei Bedarf Komponentenlogs; im Browsermodell werden ausgewählte Schritte sofort dargestellt."
+        },
+        {
+          "type": "heading",
+          "text": "Vom Pod zur Anwendung"
+        },
+        {
+          "type": "text",
+          "text": "Auch ein bereiter Pod allein garantiert noch nicht den gesamten Ende-zu-Ende-Zugriff. Service-Selektoren, Zielports, Netzwerkrichtlinien und externer Traffic müssen passen. Die weiterführenden Module bauen diese Schichten auf derselben Teamboard-Anwendung auf."
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "filename": "backend.yaml",
+          "execution": "example",
+          "caption": "Ausschnitt des gewünschten Zustands; kein vollständiges Deployment-Manifest.",
+          "code": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: teamboard-backend\nspec:\n  replicas: 3\n"
+        },
+        {
+          "type": "code",
+          "language": "text",
+          "execution": "output",
+          "caption": "Illustrative kubectl-Ausgabe während eines Rollouts; nicht von einem echten Cluster abgerufen.",
+          "code": "NAME                READY   UP-TO-DATE   AVAILABLE\nteamboard-backend   1/3     3            1"
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "API-Erfolg ist keine Bereitschaftsgarantie",
+          "text": "Der angenommene Sollzustand und die beobachteten bereiten Instanzen können zeitlich auseinanderliegen."
+        }
+      ]
+    },
+    {
+      "id": "experiment",
+      "title": "3 · Erkunden und experimentieren",
+      "navLabel": "Experiment",
+      "blocks": [
+        {
+          "type": "experiment",
+          "id": "model",
+          "kind": "flow"
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "title": "Deine Aufgabe",
+          "prompt": "Gehe den Request Flow bis zur API-Annahme durch. Sage vor jedem weiteren Schritt voraus, welche Ressource oder welcher Prozess als Nächstes entsteht. Öffne danach den YAML-Spielplatz und vergleiche seine sofortige Simulation mit diesem Ablauf.",
+          "hint": "Deployment → ReplicaSet → Pod-Objekt → Node-Zuweisung → Runtime → Readiness.",
+          "solution": "Das Browser-Lab fasst mehrere Regelkreise zusammen. Ein echtes System kann zwischen jedem dieser Schritte warten oder scheitern; API-Annahme allein bestätigt keinen laufenden oder bereiten Pod.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Ordne die Beobachtungen den passenden Zuständigkeiten zu. Die Prüfung wertet jede Zuordnung aus.",
+            "options": [
+              "API Server",
+              "etcd",
+              "Deployment-Controller",
+              "ReplicaSet-Controller",
+              "Scheduler",
+              "kubelet / Runtime"
+            ],
+            "items": [
+              {
+                "prompt": "1 · Gewünschtes Deployment entgegennehmen",
+                "answer": "API Server"
+              },
+              {
+                "prompt": "2 · Angenommenes Ziel dauerhaft speichern",
+                "answer": "etcd"
+              },
+              {
+                "prompt": "3 · ReplicaSet verwalten",
+                "answer": "Deployment-Controller"
+              },
+              {
+                "prompt": "4 · Pod-Objekte anfordern",
+                "answer": "ReplicaSet-Controller"
+              },
+              {
+                "prompt": "5 · Node auswählen und binden",
+                "answer": "Scheduler"
+              },
+              {
+                "prompt": "6 · Container starten lassen",
+                "answer": "kubelet / Runtime"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "project",
+      "title": "4 · Im Teamboard-Projekt anwenden",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Für Teamboards Pipeline sollen spätere Deployments auf ein Rollout-Ergebnis warten, nicht nur auf einen erfolgreichen Apply-Prozess. Definiere außerdem, was Anwendungsbereitschaft bedeutet."
+        },
+        {
+          "type": "text",
+          "text": "Die gespeicherte YAML-Datei und die angewendeten Ressourcen können auseinanderliegen. Das Operations Lab markiert diesen Unterschied; der Visualizer zeigt den angewendeten Zustand."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "5 · Fehleranalyse",
+          "text": "Finde den ersten nicht erreichten Übergang. Fehlt schon das Pod-Objekt, untersuche nicht zuerst dessen Prozesslogs. Ist der Pod gebunden, aber das Image fehlt, hilft eine neue Scheduler-Regel meist nicht."
+        },
+        {
+          "type": "task",
+          "id": "expert",
+          "title": "Expert-Challenge · Transfer auf die Architektur",
+          "prompt": "Ein Service hat null Endpunkte, obwohl das Deployment drei Replikate verlangt. Welche drei Ursachen würdest du zuerst unterscheiden?",
+          "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+          "solution": "Es existieren noch keine passenden Pod-Objekte; die vorhandenen Pods sind nicht bereit; oder der Service-Selektor beziehungsweise Namespace passt nicht. Danach folgen Port- und Netzwerkanalyse.",
+          "verification": {
+            "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "6 · Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Welche logische Reihenfolge passt?",
+              "answers": [
+                "kubelet → etcd → kubectl",
+                "Deployment → ReplicaSet → Pod → Bindung → Containerstart",
+                "Service → Scheduler → Image-Build"
+              ],
+              "correct": 1,
+              "explanation": "Die Reihenfolge verbindet Zielobjekte, Platzierung und Ausführung; echte Schritte sind asynchron."
+            },
+            {
+              "id": "q2",
+              "prompt": "Welche Information zeigt der gespeicherte Cluster-Visualizer?",
+              "answers": [
+                "Den angewendeten Simulationszustand",
+                "Jede noch nicht angewendete Editoränderung als echten Pod",
+                "Deinen lokalen produktiven Cluster"
+              ],
+              "correct": 0,
+              "explanation": "Entwurf und angewendetes Modell sind getrennt; es gibt keine echte Clusterverbindung."
+            },
+            {
+              "id": "q3",
+              "prompt": "Nach Apply-Erfolg gibt es noch keine Pod-Objekte. Was untersuchst du zuerst?",
+              "answers": [
+                "Die nginx-Access-Logs des fehlenden Pods",
+                "Das Browser-Theme",
+                "Controller, ReplicaSet-Ziel und Fehler beim Erzeugen der Folgeobjekte"
+              ],
+              "correct": 2,
+              "explanation": "Die Diagnose folgt dem frühesten blockierten Übergang."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

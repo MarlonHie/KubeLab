@@ -1,0 +1,196 @@
+{
+  "id": "scheduling",
+  "title": "Scheduler und Pod-Platzierung",
+  "description": "Ressourcen, harte Bedingungen und Tolerations gemeinsam betrachten.",
+  "level": "Deep Dive",
+  "duration": 30,
+  "goals": [
+    "Requests statt aktueller Nutzung für Ressourcenfilter verwenden",
+    "Harte Bedingungen von Präferenzen unterscheiden",
+    "Toleration nicht als Platzierungsgarantie missverstehen"
+  ],
+  "sources": [
+    {
+      "title": "Scheduling",
+      "url": "https://kubernetes.io/docs/concepts/scheduling-eviction/"
+    },
+    {
+      "title": "Taints und Tolerations",
+      "url": "https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/"
+    },
+    {
+      "title": "Ressourcenverwaltung",
+      "url": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/"
+    }
+  ],
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "03",
+  "category": "KUBERNETES ARCHITECTURE",
+  "reviewedOn": "2026-10-11",
+  "sections": [
+    {
+      "id": "intro",
+      "title": "1 · Das Problem verstehen",
+      "navLabel": "Einführung",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Ein neu erzeugter Pod hat zunächst möglicherweise keinen Node. Der Scheduler sucht einen geeigneten Platz unter den aktuellen Bedingungen. Er kann keine fehlende Rechenleistung erzeugen und startet keine Container."
+        },
+        {
+          "type": "text",
+          "text": "Für Teamboards Backend soll genügend CPU reserviert werden; PostgreSQL könnte zusätzlich einen bestimmten Storage- oder Zonenbezug benötigen. Ein scheinbar freier Node ist nicht automatisch geeignet."
+        }
+      ]
+    },
+    {
+      "id": "deep-dive",
+      "title": "2 · Technischer Deep Dive",
+      "navLabel": "Deep Dive",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Requests und verfügbare planbare Kapazität"
+        },
+        {
+          "type": "text",
+          "text": "Für die grundlegende Ressourcenentscheidung zählen Requests und bereits verplante Kapazität im Verhältnis zur Allocatable-Kapazität. Niedrige momentane CPU-Auslastung bedeutet nicht, dass noch genügend nicht verplante Requests verfügbar sind. Limits regeln eine andere Ebene der Ressourcennutzung."
+        },
+        {
+          "type": "heading",
+          "text": "Filtern, bewerten, binden"
+        },
+        {
+          "type": "text",
+          "text": "Harte Bedingungen wie nodeSelector oder required-Affinity können Kandidaten ausschließen. Scoring gewichtet die verbleibenden Kandidaten. Unser Playground nutzt nur CPU, einen exakten Node-Wunsch und einen NoSchedule-Taint; er wählt deterministisch den ersten passenden Node und bildet kein produktives Scoring nach."
+        },
+        {
+          "type": "heading",
+          "text": "Taints und Tolerations"
+        },
+        {
+          "type": "text",
+          "text": "Ein nicht tolerierter NoSchedule-Taint verhindert neue Platzierung. Eine passende Toleration erlaubt die Berücksichtigung, erzwingt diesen Node aber nicht. NoExecute betrifft auch die weitere Duldung bereits laufender Pods; das Experiment beschränkt sich auf NoSchedule. Ein bereits gebundener Pod wird nicht bei jeder Regeländerung neu verteilt."
+        }
+      ]
+    },
+    {
+      "id": "experiment",
+      "title": "3 · Erkunden und experimentieren",
+      "navLabel": "Experiment",
+      "blocks": [
+        {
+          "type": "experiment",
+          "id": "model",
+          "kind": "scheduler"
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "title": "Deine Aufgabe",
+          "prompt": "Fordere 3 vCPU auf worker-01 mit nur 2 freien vCPU an. Wechsle zu worker-02, versieh ihn mit einem NoSchedule-Taint und beobachte den Effekt einer Toleration.",
+          "hint": "Alle harten Bedingungen müssen gleichzeitig erfüllt sein.",
+          "solution": "worker-01 scheitert an Kapazität. worker-02 hat genug CPU, wird aber ohne passende Toleration ausgeschlossen. Die Toleration beseitigt diesen Ausschluss, nicht andere Ressourcen- oder Auswahlregeln.",
+          "verification": {
+            "kind": "experiment",
+            "experimentId": "model",
+            "requirements": [
+              {
+                "event": "scheduler.capacity-blocked",
+                "label": "3 vCPU auf worker-01: Kapazität blockiert"
+              },
+              {
+                "event": "scheduler.taint-blocked",
+                "label": "3 vCPU auf worker-02: Taint blockiert ohne Toleration"
+              },
+              {
+                "event": "scheduler.tolerated",
+                "label": "3 vCPU auf worker-02: Toleration erlaubt Platzierung"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "project",
+      "title": "4 · Im Teamboard-Projekt anwenden",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Verteile Teamboards Replikate später mit geeigneten Topologie- und Affinitätsregeln. Prüfe dabei auch die Kapazität während eines Rollouts oder nach einem Node-Ausfall."
+        },
+        {
+          "type": "text",
+          "text": "Der HPA kann mehr Replikate verlangen, ohne dass dafür schon ein geeigneter Node existiert. Pod-Skalierung und Infrastruktur-Skalierung sind unterschiedliche Regelkreise."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "5 · Fehleranalyse",
+          "text": "Ein Pending-Pod braucht Diagnose, keine willkürlich niedrigeren Limits. Events können fehlende Requests-Kapazität, unpassende Taints oder nicht bindbare Volumes erklären."
+        },
+        {
+          "type": "task",
+          "id": "expert",
+          "title": "Expert-Challenge · Transfer auf die Architektur",
+          "prompt": "Warum kann ein Pod mit kleiner CPU-Anforderung trotzdem Pending bleiben?",
+          "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+          "solution": "CPU ist nur eine Bedingung. Speicher, Affinity, Taints, Topologie, Volume-Bindung und weitere Filter können sämtliche Nodes ausschließen.",
+          "verification": {
+            "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "6 · Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Welche Größe ist für den grundlegenden CPU-Ressourcenfilter relevant?",
+              "answers": [
+                "Nur die momentane CPU-Auslastung",
+                "CPU-Requests im Verhältnis zur planbaren Kapazität",
+                "Der Name des Images"
+              ],
+              "correct": 1,
+              "explanation": "Requests werden bei der Ressourcenplanung berücksichtigt; Live-Auslastung ist kein Ersatz dafür."
+            },
+            {
+              "id": "q2",
+              "prompt": "Was garantiert eine Toleration?",
+              "answers": [
+                "Nur, dass der passende Taint diesen Pod nicht ausschließt",
+                "Die Platzierung auf genau diesem Node",
+                "Die automatische Vergrößerung des Nodes"
+              ],
+              "correct": 0,
+              "explanation": "Andere Filter und die Auswahlentscheidung gelten weiterhin."
+            },
+            {
+              "id": "q3",
+              "prompt": "Was folgt aus einer Scheduler-Bindung?",
+              "answers": [
+                "Die Anwendung ist bereits Ready",
+                "Der Service ist bereits erreichbar",
+                "Ein Node ist zugewiesen; kubelet muss die Ausführung noch umsetzen"
+              ],
+              "correct": 2,
+              "explanation": "Zuweisung, Containerstart und Anwendungsbereitschaft sind getrennte Schritte."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

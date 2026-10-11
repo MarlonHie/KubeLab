@@ -1,0 +1,113 @@
+{
+  "id": "containers",
+  "title": "Vom Image zum Container",
+  "description": "Entdecke das Zusammenspiel von Images, containerd, runc und CRI.",
+  "category": "LINUX & CONTAINER",
+  "duration": 15,
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "02",
+  "level": "Fundamentals",
+  "goals": [],
+  "sections": [
+    {
+      "id": "section-1",
+      "title": "Ein Image läuft noch nicht",
+      "navLabel": "Ein Image läuft noch nicht",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Ein **Image** enthält Dateisystem-Layer und Metadaten, etwa den Startbefehl. Ein **Container** ist eine laufende Instanz mit zusätzlicher beschreibbarer Schicht. Wenn ein Container entfernt wird, ist diese Schicht nicht als dauerhafter Datenspeicher geeignet."
+        },
+        {
+          "type": "heading",
+          "text": "Von Kubernetes zum Linux-Prozess"
+        },
+        {
+          "type": "list",
+          "ordered": true,
+          "items": [
+            "**kubelet** fordert über CRI eine Pod-Sandbox und Container an.",
+            "**containerd** verwaltet Images und den Lebenszyklus der Container.",
+            "**runc** richtet die Linux-Isolation ein und startet den Prozess nach OCI-Spezifikation."
+          ]
+        },
+        {
+          "type": "text",
+          "text": "Die CRI-Schnittstelle ist ein Vertrag, keine eigene Runtime. Kubernetes braucht keinen Docker-Daemon, um mit containerd zu arbeiten."
+        },
+        {
+          "type": "heading",
+          "text": "Image und Laufzeit untersuchen"
+        },
+        {
+          "type": "text",
+          "text": "Nach dem Einrichten der Runtime im Build Lab kannst du im externen Terminal prüfen:"
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "caption": "Befehle oder Manifest für das externe VM-Terminal.",
+          "code": "sudo crictl --runtime-endpoint unix:///run/containerd/containerd.sock info\nsudo crictl --runtime-endpoint unix:///run/containerd/containerd.sock ps -a"
+        },
+        {
+          "type": "text",
+          "text": "`crictl` arbeitet mit der CRI-Schnittstelle. `ctr` ist ein Diagnosewerkzeug für containerd und bildet nicht automatisch den Kubernetes-Workflow ab."
+        },
+        {
+          "type": "heading",
+          "text": "Deine Aufgabe"
+        },
+        {
+          "type": "text",
+          "text": "Öffne anschließend das Operations Lab und wende das Deployment an. Untersuche mit `kubectl get pods`, wie aus einer Vorlage mehrere Pod-Instanzen entstehen. Die Simulation startet dabei keine echten Container."
+        },
+        {
+          "type": "heading",
+          "text": "Wenn etwas nicht klappt"
+        },
+        {
+          "type": "text",
+          "text": "Ein `ImagePullBackOff` im echten Cluster weist oft auf einen falschen Image-Namen, einen fehlenden Tag oder fehlende Registry-Zugangsdaten hin. `kubectl describe pod NAME` zeigt die zugehörigen Events."
+        },
+        {
+          "type": "text",
+          "text": "[Container Runtimes in Kubernetes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/)"
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "answers": [
+                "Über die CRI-Schnittstelle",
+                "Direkt über etcd",
+                "Über einen Ingress"
+              ],
+              "correct": 0,
+              "explanation": "CRI ist die Schnittstelle zwischen kubelet und einer kompatiblen Container Runtime wie containerd.",
+              "prompt": "Wie kommuniziert kubelet mit containerd?"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Container Runtimes in Kubernetes",
+      "url": "https://kubernetes.io/docs/setup/production-environment/container-runtimes/"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

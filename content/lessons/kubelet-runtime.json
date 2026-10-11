@@ -1,0 +1,200 @@
+{
+  "id": "kubelet-runtime",
+  "title": "kubelet, CRI und Container Runtime",
+  "description": "Von der Node-Zuweisung zur lokalen Ausführung und zum Status.",
+  "level": "Fundamentals",
+  "duration": 25,
+  "goals": [
+    "kubelet, containerd und runc unterscheiden",
+    "Netzwerk- und Volume-Vorbereitung einordnen",
+    "Running und Ready auseinanderhalten"
+  ],
+  "sources": [
+    {
+      "title": "Container Runtimes",
+      "url": "https://kubernetes.io/docs/setup/production-environment/container-runtimes/"
+    },
+    {
+      "title": "Pod-Lebenszyklus",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+    },
+    {
+      "title": "Probes",
+      "url": "https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/"
+    }
+  ],
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "03",
+  "category": "KUBERNETES ARCHITECTURE",
+  "reviewedOn": "2026-10-11",
+  "sections": [
+    {
+      "id": "intro",
+      "title": "1 · Das Problem verstehen",
+      "navLabel": "Einführung",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Die Node-Zuweisung ist der Beginn lokaler Arbeit. kubelet beobachtet die für seinen Node vorgesehenen Pods und sorgt dafür, dass sie entsprechend ihrer Spezifikation ausgeführt werden. Dazu nutzt es eine CRI-kompatible Runtime wie containerd."
+        },
+        {
+          "type": "text",
+          "text": "CRI ist eine Schnittstelle, keine zusätzliche Container Engine. containerd verwaltet unter anderem Images und den Container-Lebenszyklus; eine OCI-Runtime wie runc setzt den isolierten Prozessstart um."
+        }
+      ]
+    },
+    {
+      "id": "deep-dive",
+      "title": "2 · Technischer Deep Dive",
+      "navLabel": "Deep Dive",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Sandbox und Vorbereitung"
+        },
+        {
+          "type": "text",
+          "text": "Eine Pod-Sandbox stellt die gemeinsame Ausführungsumgebung bereit. Runtime- und Netzwerkkomponenten richten die Netzwerkanbindung ein; Volumes müssen entsprechend der Pod-Spezifikation verfügbar werden. Die konkrete Reihenfolge kann sich überlappen und hängt von Implementierung und Zustand ab. Unser Ablauf zeigt logische Verantwortlichkeiten, keinen exakten Trace."
+        },
+        {
+          "type": "heading",
+          "text": "Image, Prozess und Probes"
+        },
+        {
+          "type": "text",
+          "text": "Ein Image-Pull kann an Registry, Zugangsdaten oder einem unbekannten Tag scheitern. Nach dem Prozessstart prüfen konfigurierte Startup-, Liveness- und Readiness-Probes unterschiedliche Dinge: Anlaufphase, Wiederanlaufbedarf und Eignung für Verkehr. Ein laufender Prozess muss nicht bereit sein, Anfragen korrekt zu bedienen."
+        },
+        {
+          "type": "heading",
+          "text": "Rückmeldung statt zentraler Fernsteuerung"
+        },
+        {
+          "type": "text",
+          "text": "kubelet meldet Status über die API. Es kann vorhandene lokale Container auch während zeitweiser API-Unerreichbarkeit betreuen; neue Ziele und Statusaustausch sind dann begrenzt. Der Scheduler wird nicht automatisch zum Ersatz für ein ausgefallenes kubelet."
+        }
+      ]
+    },
+    {
+      "id": "experiment",
+      "title": "3 · Erkunden und experimentieren",
+      "navLabel": "Experiment",
+      "blocks": [
+        {
+          "type": "experiment",
+          "id": "model",
+          "kind": "runtime"
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "title": "Deine Aufgabe",
+          "prompt": "Schalte nacheinander Netzwerkvorbereitung, Image-Verfügbarkeit und Readiness aus. An welchem Schritt stoppt das Modell, und was unterscheidet die drei Fehler?",
+          "hint": "Ein Container kann erst nach erfolgreicher Vorbereitung starten; Readiness ist dagegen eine spätere Aussage über Verkehr.",
+          "solution": "Fehlende Vorbereitung verhindert den nutzbaren Pod-Aufbau, ein fehlendes Image verhindert den Containerstart, eine fehlgeschlagene Readiness kann einen laufenden Container aus regulären Service-Endpunkten fernhalten.",
+          "verification": {
+            "kind": "experiment",
+            "experimentId": "model",
+            "requirements": [
+              {
+                "event": "runtime.network-blocked",
+                "label": "Fehlende Netzwerkvorbereitung untersucht"
+              },
+              {
+                "event": "runtime.image-blocked",
+                "label": "Fehlendes Image bei verfügbarer Vorbereitung untersucht"
+              },
+              {
+                "event": "runtime.not-ready",
+                "label": "Laufenden, nicht bereiten Container untersucht"
+              },
+              {
+                "event": "runtime.ready",
+                "label": "Vorbereitung und Bereitschaft wiederhergestellt"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "project",
+      "title": "4 · Im Teamboard-Projekt anwenden",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Teamboards Backend sollte erst Ready melden, wenn es seine Aufgabe erfüllen kann. Eine Probe, die nur das Vorhandensein des Prozesses prüft, kann abhängige Fehler übersehen."
+        },
+        {
+          "type": "text",
+          "text": "Die Datenbank darf bei einer kurzen Abhängigkeitsstörung nicht durch eine unbedachte Liveness-Probe in eine dauernde Neustartschleife geraten. Probe-Design gehört zur Anwendung."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "5 · Fehleranalyse",
+          "text": "Beginne bei Pod-Events und Containerstatus. ImagePullBackOff, CrashLoopBackOff und nicht bestandene Readiness beschreiben unterschiedliche Situationen; „Pod läuft nicht“ ist dafür zu ungenau."
+        },
+        {
+          "type": "task",
+          "id": "expert",
+          "title": "Expert-Challenge · Transfer auf die Architektur",
+          "prompt": "Warum ist ein erfolgreicher Image-Pull noch kein Beleg für einen gesunden Pod?",
+          "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+          "solution": "Der Prozess kann beim Start abstürzen, notwendige Konfiguration kann fehlen, und Probes können weiterhin scheitern. Image-Verfügbarkeit ist nur eine Voraussetzung.",
+          "verification": {
+            "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "6 · Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Was ist CRI?",
+              "answers": [
+                "Die Schnittstelle zwischen kubelet und kompatibler Runtime",
+                "Ein Ersatz für etcd",
+                "Ein DNS-Protokoll"
+              ],
+              "correct": 0,
+              "explanation": "CRI trennt kubelet von konkreten Runtime-Implementierungen."
+            },
+            {
+              "id": "q2",
+              "prompt": "Ein Container läuft, die Readiness-Probe scheitert. Was ist möglich?",
+              "answers": [
+                "Der Container kann überhaupt nicht existieren",
+                "Der Pod ist für regulären Service-Verkehr nicht bereit",
+                "Der Scheduler muss das Image herunterladen"
+              ],
+              "correct": 1,
+              "explanation": "Laufzeitstatus und Readiness sind getrennte Beobachtungen."
+            },
+            {
+              "id": "q3",
+              "prompt": "Wer führt die Platzierungsentscheidung aus?",
+              "answers": [
+                "etcd startet die Prozesse",
+                "CoreDNS ruft runc auf",
+                "kubelet koordiniert die lokale Runtime"
+              ],
+              "correct": 2,
+              "explanation": "Nach der Bindung liegt die lokale Ausführung beim Node-Agenten und seinen Integrationen."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

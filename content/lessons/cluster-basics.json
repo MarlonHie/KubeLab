@@ -1,0 +1,217 @@
+{
+  "id": "cluster-basics",
+  "title": "Was ist Kubernetes – und was ist ein Cluster?",
+  "description": "Vom einzelnen Prozess zur deklarativ verwalteten Anwendungsplattform.",
+  "level": "Fundamentals",
+  "duration": 20,
+  "goals": [
+    "Cluster, Node, Pod und Container auseinanderhalten",
+    "Sollzustand von beobachtetem Zustand unterscheiden",
+    "Kubernetes von Anwendung und Infrastruktur abgrenzen"
+  ],
+  "sources": [
+    {
+      "title": "Kubernetes – Überblick",
+      "url": "https://kubernetes.io/docs/concepts/overview/"
+    },
+    {
+      "title": "Pods",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/"
+    }
+  ],
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "03",
+  "category": "KUBERNETES ARCHITECTURE",
+  "reviewedOn": "2026-10-11",
+  "sections": [
+    {
+      "id": "intro",
+      "title": "1 · Das Problem verstehen",
+      "navLabel": "Einführung",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Unser Praxisprojekt heißt Teamboard: Ein Frontend spricht eine Backend-API an, die Daten in PostgreSQL speichert. Drei Prozesse auf einer Maschine funktionieren, bis ein Prozess abstürzt oder die Maschine ausfällt. Eine Plattform muss dann entscheiden, welche Instanzen fehlen und wo Ersatz laufen darf."
+        },
+        {
+          "type": "text",
+          "text": "Kubernetes beschreibt und koordiniert solche Workloads über eine API. Ein Cluster umfasst eine Control Plane und Nodes, auf denen Pods laufen können. Ein Pod ist die kleinste planbare Einheit; er kapselt einen oder mehrere eng zusammengehörige Container. Kubernetes liefert weder automatisch passende VMs noch eine korrekte Datenbank-Backupstrategie."
+        }
+      ]
+    },
+    {
+      "id": "deep-dive",
+      "title": "2 · Technischer Deep Dive",
+      "navLabel": "Deep Dive",
+      "blocks": [
+        {
+          "type": "heading",
+          "text": "Deklarativ bedeutet einen Zustand beschreiben"
+        },
+        {
+          "type": "text",
+          "text": "Ein Deployment mit replicas: 3 beschreibt drei gewünschte Pod-Instanzen. Controller vergleichen dieses Ziel wiederholt mit der beobachteten Realität. Die erfolgreiche API-Antwort bestätigt eine angenommene Änderung, nicht drei betriebsbereite Anwendungen. Beobachtungen können zeitlich hinter dem Ziel liegen."
+        },
+        {
+          "type": "heading",
+          "text": "Ressourcen sind API-Objekte"
+        },
+        {
+          "type": "text",
+          "text": "metadata identifiziert und beschriftet ein Objekt, spec beschreibt seine gewünschte Konfiguration, status enthält Beobachtungen der zuständigen Komponenten. Nicht jede Ressourcenart hat dieselben Felder. Ein Namespace grenzt viele API-Objekte logisch ab; er ist allein keine vollständige Netzwerk- oder Sicherheitsisolation."
+        },
+        {
+          "type": "heading",
+          "text": "Was zusammenbleibt – und was ersetzt werden kann"
+        },
+        {
+          "type": "text",
+          "text": "Container eines Pods teilen dessen Netzwerk-Namespace und können gemeinsam konfigurierte Volumes nutzen. Ein ersetzter Pod ist ein neues Objekt mit neuer UID und oft neuer IP. Ein Service bietet einen stabilen Zugang zu wechselnden geeigneten Endpunkten; persistente Daten brauchen eine eigene Storage-Strategie."
+        },
+        {
+          "type": "table",
+          "caption": "Zuständigkeiten im bestehenden Clusterbeispiel",
+          "headers": ["Objekt", "Aufgabe"],
+          "rows": [
+            ["Deployment", "Gewünschte Pod-Replikate beschreiben"],
+            ["Pod", "Planbare Einheit für zusammengehörige Container"],
+            ["Service", "Stabiler Zugang zu wechselnden Endpunkten"]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "experiment",
+      "title": "3 · Erkunden und experimentieren",
+      "navLabel": "Experiment",
+      "blocks": [
+        {
+          "type": "experiment",
+          "id": "model",
+          "kind": "architecture"
+        },
+        {
+          "type": "task",
+          "id": "practice",
+          "title": "Deine Aufgabe",
+          "prompt": "Ordne API Server, etcd, Scheduler, kubelet und containerd der Koordination oder Ausführung zu. Welche Teile brauchst du, wenn Teamboard von zwei auf drei Backend-Instanzen wächst?",
+          "hint": "Das Ziel wird zentral gespeichert. Auswahl und tatsächlicher Start sind getrennte Schritte.",
+          "solution": "API Server und etcd nehmen das neue Ziel auf; Controller erzeugen fehlende Pod-Objekte; der Scheduler wählt Nodes; kubelet und Runtime starten Container. Keine einzelne Komponente erledigt den gesamten Ablauf.",
+          "verification": {
+            "kind": "matching",
+            "instruction": "Ordne die Beobachtungen den passenden Zuständigkeiten zu. Die Prüfung wertet jede Zuordnung aus.",
+            "options": [
+              "API Server",
+              "etcd",
+              "Controller",
+              "Scheduler",
+              "kubelet"
+            ],
+            "items": [
+              {
+                "prompt": "Das Ziel des Deployments entgegennehmen",
+                "answer": "API Server"
+              },
+              {
+                "prompt": "Akzeptierten Clusterzustand speichern",
+                "answer": "etcd"
+              },
+              {
+                "prompt": "Fehlende Pod-Objekte anfordern",
+                "answer": "Controller"
+              },
+              {
+                "prompt": "Einen geeigneten Node auswählen",
+                "answer": "Scheduler"
+              },
+              {
+                "prompt": "Container über CRI starten lassen",
+                "answer": "kubelet"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "project",
+      "title": "4 · Im Teamboard-Projekt anwenden",
+      "navLabel": "Praxis",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Teamboards Frontend und API lassen sich später als Deployments betreiben. PostgreSQL benötigt zusätzlich persistente Volumes, eine geregelte Primärrolle und ein Wiederherstellungsverfahren. Mehr Replikate allein machen eine Datenbank nicht korrekt hochverfügbar."
+        },
+        {
+          "type": "text",
+          "text": "Plane zuerst Fehlerdomänen und Datenhaltung. Kubernetes kann die gewünschte Anzahl von Instanzen nur erreichen, wenn Ressourcen, Images und Abhängigkeiten verfügbar sind."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "5 · Fehleranalyse",
+          "text": "„Deployment erstellt“ und „Anwendung erreichbar“ sind verschiedene Beobachtungen. Prüfe nach dem API-Erfolg Pod-Status, Readiness und Service-Endpunkte."
+        },
+        {
+          "type": "task",
+          "id": "expert",
+          "title": "Expert-Challenge · Transfer auf die Architektur",
+          "prompt": "Warum sind drei Backend-Pods auf demselben Node keine Absicherung gegen einen Node-Ausfall?",
+          "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+          "solution": "Alle teilen eine Fehlerdomäne. Fällt der Node aus, können alle drei gleichzeitig verloren gehen. Verteilung über Nodes oder Zonen braucht geeignete Platzierungsregeln, freie Kapazität und verfügbare Abhängigkeiten.",
+          "verification": {
+            "kind": "reflection"
+          }
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "6 · Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "prompt": "Welche Einheit plant der Scheduler auf einen Node?",
+              "answers": [
+                "Einzelne Container unabhängig voneinander",
+                "Pods",
+                "Namespaces"
+              ],
+              "correct": 1,
+              "explanation": "Scheduling weist Pods Nodes zu. kubelet organisiert danach die Container innerhalb eines Pods."
+            },
+            {
+              "id": "q2",
+              "prompt": "Was bestätigt ein erfolgreich angenommenes Deployment zunächst?",
+              "answers": [
+                "Der gewünschte Zustand wurde von der API akzeptiert",
+                "Alle Pods sind Ready",
+                "Die Datenbank ist gesichert"
+              ],
+              "correct": 0,
+              "explanation": "Die verteilten Regelkreise arbeiten danach weiter. API-Erfolg ist keine Bereitschaftsgarantie."
+            },
+            {
+              "id": "q3",
+              "prompt": "Welche Planung fehlt, wenn alle Replikate auf einer Maschine laufen?",
+              "answers": [
+                "Ein zusätzlicher Namespace",
+                "Ein neuer Image-Tag",
+                "Die Verteilung über unabhängige Fehlerdomänen"
+              ],
+              "correct": 2,
+              "explanation": "Replikation und Verteilung lösen unterschiedliche Probleme. Ein Node-Ausfall kann sämtliche lokalen Instanzen treffen."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

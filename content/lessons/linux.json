@@ -1,0 +1,104 @@
+{
+  "id": "linux",
+  "title": "Linux ist das Fundament",
+  "description": "Prozesse, Namespaces und cgroups: verstehe, worauf Container aufbauen.",
+  "category": "LINUX & CONTAINER",
+  "duration": 12,
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "moduleId": "01",
+  "level": "Fundamentals",
+  "goals": [],
+  "sections": [
+    {
+      "id": "section-1",
+      "title": "Container beginnen mit Linux",
+      "navLabel": "Container beginnen mit Linux",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Ein Container ist ein Prozess auf dem Host. Er nutzt denselben Kernel wie andere Prozesse, bekommt aber eine eingeschränkte Sicht auf das System und ein eigenes Dateisystem. Eine virtuelle Maschine startet dagegen einen eigenen Kernel."
+        },
+        {
+          "type": "heading",
+          "text": "Zwei Mechanismen, zwei Aufgaben"
+        },
+        {
+          "type": "text",
+          "text": "**Namespaces** isolieren die Sicht auf Ressourcen: Der PID-Namespace zeigt eigene Prozessnummern, der Network-Namespace eigene Netzwerkschnittstellen. Ein Mount-Namespace ermöglicht eine eigene Sicht auf eingebundene Dateisysteme."
+        },
+        {
+          "type": "text",
+          "text": "**cgroups** fassen Prozesse zusammen und begrenzen beispielsweise CPU-Zeit und Arbeitsspeicher. Isolation und Ressourcenbegrenzung sind unterschiedliche Aufgaben; Container verwenden beides."
+        },
+        {
+          "type": "heading",
+          "text": "Im eigenen Terminal erkunden"
+        },
+        {
+          "type": "text",
+          "text": "Die folgenden lesenden Befehle kannst du in einer Linux-VM ausführen. Das Browserterminal führt sie nicht aus."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "caption": "Befehle oder Manifest für das externe VM-Terminal.",
+          "code": "ps -eo pid,comm --sort=pid | head\nlsns\ncat /proc/self/cgroup\nsystemctl status containerd --no-pager"
+        },
+        {
+          "type": "text",
+          "text": "Falls containerd noch nicht installiert ist, meldet systemd eine unbekannte Unit. Das ist hier kein Fehler: Du installierst die Runtime später im Build Lab."
+        },
+        {
+          "type": "heading",
+          "text": "Deine Aufgabe"
+        },
+        {
+          "type": "text",
+          "text": "Vergleiche zwei Prozesse mit `lsns`. Welche Namespaces teilen sie? Erkläre dann in eigenen Worten, warum ein Container keine vollständige virtuelle Maschine ist."
+        },
+        {
+          "type": "heading",
+          "text": "Wenn etwas nicht klappt"
+        },
+        {
+          "type": "text",
+          "text": "Unter Windows brauchst du für diese Befehle Linux, zum Beispiel in einer VM oder WSL2. Einige Informationen in `lsns` sind nur mit erhöhten Rechten sichtbar. Verändere für diese Aufgabe keine Systemkonfiguration."
+        },
+        {
+          "type": "text",
+          "text": "[Linux Namespaces: offizielle Handbuchseite](https://man7.org/linux/man-pages/man7/namespaces.7.html)"
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": "Wissenscheck",
+      "navLabel": "Wissenscheck",
+      "blocks": [
+        {
+          "type": "quiz",
+          "id": "theory",
+          "title": "Kannst du die Zusammenhänge erklären?",
+          "questions": [
+            {
+              "id": "q1",
+              "answers": ["Namespaces", "cgroups", "Ein Container-Image"],
+              "correct": 1,
+              "explanation": "cgroups bündeln Prozesse und regeln ihren Ressourcenverbrauch. Namespaces isolieren ihre Sicht auf Systemressourcen.",
+              "prompt": "Was begrenzt den CPU- und Speicherverbrauch einer Prozessgruppe?"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Linux Namespaces: offizielle Handbuchseite",
+      "url": "https://man7.org/linux/man-pages/man7/namespaces.7.html"
+    }
+  ],
+  "reviewedOn": "2026-10-11"
+}

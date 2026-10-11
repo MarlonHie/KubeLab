@@ -10,7 +10,7 @@ import {
   schedulingCandidates,
   runtimeResult,
 } from "../packages/simulation-engine/src/architecture";
-import { architectureLessons } from "../content/architecture/lessons";
+import { architectureLessons, quizFor } from "../packages/lesson-engine/src";
 import { curriculum, lessons } from "../packages/lesson-engine/src";
 import { freshLab, parseLab } from "../packages/lab-state/src";
 import {
@@ -159,11 +159,13 @@ describe("Curriculum and backward-compatible learning progress", () => {
     expect(new Set(lessons.map((l) => l.id)).size).toBe(lessons.length);
     for (const l of architectureLessons) {
       expect(l.goals.length).toBeGreaterThanOrEqual(3);
-      expect(l.deepDive.length).toBeGreaterThanOrEqual(3);
-      expect(l.questions).toHaveLength(3);
+      expect(
+        l.sections.find((s) => s.id === "deep-dive")!.blocks.length,
+      ).toBeGreaterThanOrEqual(6);
+      expect(quizFor(l).questions).toHaveLength(3);
       expect(l.sources.length).toBeGreaterThanOrEqual(2);
       expect(lessons.find((meta) => meta.id === l.id)?.moduleId).toBe("03");
-      for (const q of l.questions) {
+      for (const q of quizFor(l).questions) {
         expect(q.correct).toBeGreaterThanOrEqual(0);
         expect(q.correct).toBeLessThan(q.answers.length);
         expect(new Set(q.answers).size).toBe(q.answers.length);
@@ -179,8 +181,8 @@ describe("Curriculum and backward-compatible learning progress", () => {
       lastLesson: "control-plane",
       theme: "dark",
     });
-    expect(p.version).toBe(2);
-    expect(p.completed).toEqual(["linux"]);
+    expect(p.version).toBe(3);
+    expect(p.theoryCompleted).toEqual(["linux"]);
     expect(p.completedChallenges).toEqual(["selector"]);
     expect(p.checkpoints).toEqual([0]);
   });
