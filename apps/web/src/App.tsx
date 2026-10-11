@@ -143,7 +143,7 @@ function App() {
             <ExternalLink size={13} />
           </a>
           <div className="sidebar-footer">
-            KubeLab <span>v0.2.1 · Local first</span>
+            KubeLab <span>v0.2.2 · Local first</span>
           </div>
         </div>
       </aside>

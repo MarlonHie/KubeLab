@@ -1,4 +1,4 @@
-# KubeLab 0.2.1 · Content First
+# KubeLab 0.2.2 · Content First und Architecture Internals
 
 Die React-/TypeScript-SPA wird mit Vite ausschließlich statisch gebaut. HashRouter und relative Assets unterstützen GitHub Pages unter einer Repository-Unterseite. Kein Server, Tracking, Konto oder Clusterzugriff.
 
@@ -32,3 +32,9 @@ Die Architekturmodelle sind eigenständige didaktische Experimente. Der etcd-Sim
 Unit-Tests prüfen Zustandsübergänge, Importgrenzen, Migration, Szenariolösungen und Inhaltsstruktur. Playwright prüft die neun Lektionen, Quorum-Verhalten, Quizabschluss, Persistenz, Import/Export, Szenarioreparatur, responsive Darstellung und bestehende Kernabläufe. Fachreview und Beta-Tests mit Kollegen stehen als weitere Qualitätsschritte aus.
 
 Der aktuelle Ausbauplan steht in [content-first.md](content-first.md). Der ursprüngliche Gesamtentwurf bleibt in [roadmap.md](roadmap.md) erhalten.
+
+## Zustandsbasierte Vertiefung
+
+`deep-labs.ts` enthält reine Raft- und Scheduler-Lehrmodelle. `challenges.ts` rekonstruiert Zustände aus einer vollständigen Aktionshistorie und prüft geordnete Vor-/Nachbedingungen. Die UI benutzt dasselbe Replay; beliebige Ereignismengen reichen für die neuen Challenges nicht aus. Native Details-Abschnitte behalten beim Einklappen ihre Antworten und Modellhistorie. Neue Nachweise verwenden eigene Aufgaben-IDs; das bestehende Fortschrittsformat 3 bleibt kompatibel. Ein Rücksprung auf alte App-Versionen kann deren Validator an unbekannten neuen Aufgaben-IDs scheitern lassen; Exporte daher mit der aktuellen Version importieren.
+
+Die Tests sichern alle Abschnitte aus 0.2.1 unverändert, prüfen Log-/Commit-Invarianten und Fehlerpfade sowie alte und neue Fortschrittsnachweise. Fachumfang und Quellenprüfung: [Modul-03-Gap-Analyse](../content/module-03-gap-analysis.md).

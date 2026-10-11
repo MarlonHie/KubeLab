@@ -57,3 +57,9 @@ Zielrepository: https://github.com/MarlonHie/KubeLab. Die Veröffentlichung ben�
 Alle 13 Lektionen liegen einzeln in `content/lessons/` und werden über `catalog.ts` registriert. Die gemeinsame Ansicht heißt `LessonPage.tsx`; neue Lektionen benötigen keine eigene React-Seite. Das [Autorenhandbuch](docs/architecture/lesson-authoring.md) beschreibt Blöcke, Prüfungen, IDs und Datenmigration. Neue Inhalte müssen technische Erklärung, Modellgrenzen, Praxis, Lösungen und Primärquellen enthalten. Fachreview und Kollegen-Beta bleiben eigene Qualitätsschritte; automatisierte Tests ersetzen sie nicht.
 
 MIT-Lizenz, siehe [LICENSE](LICENSE).
+
+### Modul 03 · Internals & Failure Analysis (0.2.2)
+
+Alle neun Architekturlektionen enthalten einen optional aufklappbaren Internals-Abschnitt. Die Grundlagen bleiben vollständig erhalten. Zusätzlich gibt es neun Transferaufgaben sowie zwei Deep Dive Simulatoren: etcd-Netzpartition mit getrenntem Log/Commit/Apply und eine Scheduler-Pipeline mit PreBind-Fehler, Unreserve und erneutem Binding-Versuch. Neue komplexe Praxisnachweise prüfen geordnete Aktionen und daraus rekonstruierte Modellzustände. Die Modelle führen keine echten Kubernetes-Befehle aus.
+
+Die [Gap-Analyse und redaktionelle Lernzielprüfung](docs/content/module-03-gap-analysis.md) dokumentiert Ergänzungen, Quellen, Ausgabeherkunft und Grenzen. Bestehende Abschlüsse bleiben erhalten; vollständige Praxis umfasst jetzt auch neue Internals-Aufgaben. Lokale Prüfung: 107 Unit-Tests, 26 Playwright-Tests und Produktionsbuild erfolgreich.
