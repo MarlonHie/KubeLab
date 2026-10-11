@@ -1,0 +1,1889 @@
+[
+  {
+    "id": "api-lifecycle",
+    "title": "kube-apiserver: der Lebenszyklus einer Anfrage",
+    "description": "Identität, Berechtigung, Admission und Persistenz getrennt untersuchen.",
+    "level": "Deep Dive",
+    "duration": 30,
+    "goals": [
+      "Authentifizierung von Autorisierung unterscheiden",
+      "Admission in den Schreibpfad einordnen",
+      "Ablehnungen ohne Änderung des Sollzustands erklären"
+    ],
+    "sources": [
+      {
+        "title": "API-Autorisierung",
+        "url": "https://kubernetes.io/docs/reference/access-authn-authz/authorization/"
+      },
+      {
+        "title": "Admission Controller",
+        "url": "https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/"
+      },
+      {
+        "title": "Server-side apply",
+        "url": "https://kubernetes.io/docs/reference/using-api/server-side-apply/"
+      }
+    ],
+    "$schema": "../../packages/lesson-engine/lesson.schema.json",
+    "schemaVersion": 1,
+    "moduleId": "03",
+    "category": "KUBERNETES ARCHITECTURE",
+    "reviewedOn": "2026-10-11",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "1 · Das Problem verstehen",
+        "navLabel": "Einführung",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Ein Aufruf von kubectl ist ein API-Client-Aufruf. Zuerst muss die Verbindung zum vorgesehenen API-Endpunkt funktionieren. Danach entscheidet der Server, welche Identität hinter der Anfrage steht und ob diese Identität die Operation ausführen darf."
+          },
+          {
+            "type": "text",
+            "text": "Teamboards Deployment ist ein gutes Beispiel: Ein gültiges Zertifikat beweist eine Identität, aber es verleiht nicht automatisch die Berechtigung, Deployments in einem bestimmten Namespace zu erstellen."
+          }
+        ]
+      },
+      {
+        "id": "deep-dive",
+        "title": "2 · Technischer Deep Dive",
+        "navLabel": "Deep Dive",
+        "blocks": [
+          {
+            "type": "heading",
+            "text": "Authentifizierung und Autorisierung"
+          },
+          {
+            "type": "text",
+            "text": "Authentifizierung ordnet Anmeldedaten einer Identität zu. Autorisierung bewertet die gewünschte Operation auf einer Ressource, etwa create auf deployments im Namespace teamboard. RBAC ist ein verbreiteter Autorisierungsmechanismus. Fehlende Berechtigung wird nicht dadurch behoben, dass man YAML-Felder umsortiert."
+          },
+          {
+            "type": "heading",
+            "text": "Admission und Objektprüfung"
+          },
+          {
+            "type": "text",
+            "text": "Für schreibende Anfragen können mutierende Admission-Regeln Daten ergänzen und validierende Regeln eine Änderung ablehnen. Schema-, Defaulting-, Conversion- und Admission-Schritte sind ressourcen- und versionsabhängig; der Explorer fasst diese bewusst zu groben Stufen zusammen. Ein erfolgreicher Lesezugriff durchläuft nicht denselben mutierenden Schreibpfad."
+          },
+          {
+            "type": "heading",
+            "text": "Annahme und Nebenwirkungen"
+          },
+          {
+            "type": "text",
+            "text": "Nach erfolgreicher Prüfung wird die akzeptierte Änderung persistiert und eine Antwort geliefert. Controller reagieren anschließend auf beobachtete API-Änderungen. Ein Ressourcenversionskonflikt kann einen erneuten Lese- und Schreibversuch erfordern. Server-side apply verwaltet außerdem Feldbesitz; konkurrierende Feldmanager können Konflikte auslösen."
+          }
+        ]
+      },
+      {
+        "id": "experiment",
+        "title": "3 · Erkunden und experimentieren",
+        "navLabel": "Experiment",
+        "blocks": [
+          {
+            "type": "experiment",
+            "id": "model",
+            "kind": "api"
+          },
+          {
+            "type": "task",
+            "id": "practice",
+            "title": "Deine Aufgabe",
+            "prompt": "Sende im Explorer zuerst eine Anfrage ohne gültige Identität, dann ohne Berechtigung und zuletzt mit einer abgelehnten Admission-Prüfung. Wann ändert sich der gespeicherte Zustand?",
+            "hint": "Ein abgelehnter Schreibvorgang darf keine erfolgreiche Persistenz vortäuschen.",
+            "solution": "Nur der vollständig akzeptierte Schreibpfad erhöht die Modellrevision. Authentifizierung, Autorisierung und Admission können den Pfad jeweils vorher stoppen.",
+            "verification": {
+              "kind": "experiment",
+              "experimentId": "model",
+              "requirements": [
+                {
+                  "event": "api.identity-rejected",
+                  "label": "Anfrage ohne gültige Identität abgelehnt"
+                },
+                {
+                  "event": "api.permission-rejected",
+                  "label": "Anfrage ohne Berechtigung abgelehnt"
+                },
+                {
+                  "event": "api.admission-rejected",
+                  "label": "Anfrage durch Admission abgelehnt"
+                },
+                {
+                  "event": "api.accepted",
+                  "label": "Vollständig gültige Anfrage angenommen"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "project",
+        "title": "4 · Im Teamboard-Projekt anwenden",
+        "navLabel": "Praxis",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Für Teamboards GitOps-Controller werden spätere Berechtigungen auf seine benötigten Ressourcen und Namespaces zugeschnitten. API-Zugang und Anwendungszugang sind verschiedene Sicherheitsflächen."
+          },
+          {
+            "type": "text",
+            "text": "Im echten Cluster hilft kubectl auth can-i bei Autorisierungsfragen; API-Antwort, Events und Admission-Fehler liefern unterschiedliche Hinweise. Der Browser-Explorer sendet keine echten API-Anfragen."
+          },
+          {
+            "type": "callout",
+            "tone": "tip",
+            "title": "5 · Fehleranalyse",
+            "text": "Unterscheide Verbindungsfehler, 401, 403 und Admission-Ablehnung. Ein Timeout kann auch einen unbekannten Ausgang haben: Prüfe den tatsächlichen Objektzustand, bevor du eine Änderung blind wiederholst."
+          },
+          {
+            "type": "task",
+            "id": "expert",
+            "title": "Expert-Challenge · Transfer auf die Architektur",
+            "prompt": "Ein Deployment-Apply liefert Erfolg, aber die später erzeugten Pods werden von einer Policy abgelehnt. Ist das ein Widerspruch?",
+            "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+            "solution": "Nein. Deployment und Pod sind unterschiedliche API-Objekte und Schreibvorgänge. Ein Controller kann beim späteren Erzeugen der Pods auf deren eigene Admission-Regeln stoßen.",
+            "verification": {
+              "kind": "reflection"
+            }
+          }
+        ]
+      },
+      {
+        "id": "knowledge",
+        "title": "6 · Wissenscheck",
+        "navLabel": "Wissenscheck",
+        "blocks": [
+          {
+            "type": "quiz",
+            "id": "theory",
+            "title": "Kannst du die Zusammenhänge erklären?",
+            "questions": [
+              {
+                "id": "q1",
+                "prompt": "Was prüft Autorisierung?",
+                "answers": [
+                  "Ob ein Container Ready ist",
+                  "Ob die Identität diese Operation ausführen darf",
+                  "Ob ein Node genügend RAM hat"
+                ],
+                "correct": 1,
+                "explanation": "Autorisierung prüft Rechte auf API-Operationen; sie ist weder Scheduling noch Readiness."
+              },
+              {
+                "id": "q2",
+                "prompt": "Eine Admission-Regel lehnt ein Pod-Objekt ab. Was darfst du daraus folgern?",
+                "answers": [
+                  "Genau dieser Schreibvorgang wurde nicht erfolgreich angenommen",
+                  "etcd hat zwingend Quorum verloren",
+                  "Alle Pods des Clusters wurden gelöscht"
+                ],
+                "correct": 0,
+                "explanation": "Die Ablehnung betrifft die geprüfte Anfrage. Sie ist keine globale Zustandsaussage."
+              },
+              {
+                "id": "q3",
+                "prompt": "Warum kann ein Controller nach erfolgreichem Deployment-Apply trotzdem keine Pods erzeugen?",
+                "answers": [
+                  "Er benutzt immer SSH",
+                  "Deployments enthalten keine Pod-Vorlage",
+                  "Pod-Erstellung unterliegt eigenen Prüfungen und Berechtigungen"
+                ],
+                "correct": 2,
+                "explanation": "Die Folgeobjekte entstehen in separaten API-Operationen mit eigenen möglichen Fehlern."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "kubelet-runtime",
+    "title": "kubelet, CRI und Container Runtime",
+    "description": "Von der Node-Zuweisung zur lokalen Ausführung und zum Status.",
+    "level": "Fundamentals",
+    "duration": 25,
+    "goals": [
+      "kubelet, containerd und runc unterscheiden",
+      "Netzwerk- und Volume-Vorbereitung einordnen",
+      "Running und Ready auseinanderhalten"
+    ],
+    "sources": [
+      {
+        "title": "Container Runtimes",
+        "url": "https://kubernetes.io/docs/setup/production-environment/container-runtimes/"
+      },
+      {
+        "title": "Pod-Lebenszyklus",
+        "url": "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+      },
+      {
+        "title": "Probes",
+        "url": "https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/"
+      }
+    ],
+    "$schema": "../../packages/lesson-engine/lesson.schema.json",
+    "schemaVersion": 1,
+    "moduleId": "03",
+    "category": "KUBERNETES ARCHITECTURE",
+    "reviewedOn": "2026-10-11",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "1 · Das Problem verstehen",
+        "navLabel": "Einführung",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Die Node-Zuweisung ist der Beginn lokaler Arbeit. kubelet beobachtet die für seinen Node vorgesehenen Pods und sorgt dafür, dass sie entsprechend ihrer Spezifikation ausgeführt werden. Dazu nutzt es eine CRI-kompatible Runtime wie containerd."
+          },
+          {
+            "type": "text",
+            "text": "CRI ist eine Schnittstelle, keine zusätzliche Container Engine. containerd verwaltet unter anderem Images und den Container-Lebenszyklus; eine OCI-Runtime wie runc setzt den isolierten Prozessstart um."
+          }
+        ]
+      },
+      {
+        "id": "deep-dive",
+        "title": "2 · Technischer Deep Dive",
+        "navLabel": "Deep Dive",
+        "blocks": [
+          {
+            "type": "heading",
+            "text": "Sandbox und Vorbereitung"
+          },
+          {
+            "type": "text",
+            "text": "Eine Pod-Sandbox stellt die gemeinsame Ausführungsumgebung bereit. Runtime- und Netzwerkkomponenten richten die Netzwerkanbindung ein; Volumes müssen entsprechend der Pod-Spezifikation verfügbar werden. Die konkrete Reihenfolge kann sich überlappen und hängt von Implementierung und Zustand ab. Unser Ablauf zeigt logische Verantwortlichkeiten, keinen exakten Trace."
+          },
+          {
+            "type": "heading",
+            "text": "Image, Prozess und Probes"
+          },
+          {
+            "type": "text",
+            "text": "Ein Image-Pull kann an Registry, Zugangsdaten oder einem unbekannten Tag scheitern. Nach dem Prozessstart prüfen konfigurierte Startup-, Liveness- und Readiness-Probes unterschiedliche Dinge: Anlaufphase, Wiederanlaufbedarf und Eignung für Verkehr. Ein laufender Prozess muss nicht bereit sein, Anfragen korrekt zu bedienen."
+          },
+          {
+            "type": "heading",
+            "text": "Rückmeldung statt zentraler Fernsteuerung"
+          },
+          {
+            "type": "text",
+            "text": "kubelet meldet Status über die API. Es kann vorhandene lokale Container auch während zeitweiser API-Unerreichbarkeit betreuen; neue Ziele und Statusaustausch sind dann begrenzt. Der Scheduler wird nicht automatisch zum Ersatz für ein ausgefallenes kubelet."
+          }
+        ]
+      },
+      {
+        "id": "experiment",
+        "title": "3 · Erkunden und experimentieren",
+        "navLabel": "Experiment",
+        "blocks": [
+          {
+            "type": "experiment",
+            "id": "model",
+            "kind": "runtime"
+          },
+          {
+            "type": "task",
+            "id": "practice",
+            "title": "Deine Aufgabe",
+            "prompt": "Schalte nacheinander Netzwerkvorbereitung, Image-Verfügbarkeit und Readiness aus. An welchem Schritt stoppt das Modell, und was unterscheidet die drei Fehler?",
+            "hint": "Ein Container kann erst nach erfolgreicher Vorbereitung starten; Readiness ist dagegen eine spätere Aussage über Verkehr.",
+            "solution": "Fehlende Vorbereitung verhindert den nutzbaren Pod-Aufbau, ein fehlendes Image verhindert den Containerstart, eine fehlgeschlagene Readiness kann einen laufenden Container aus regulären Service-Endpunkten fernhalten.",
+            "verification": {
+              "kind": "experiment",
+              "experimentId": "model",
+              "requirements": [
+                {
+                  "event": "runtime.network-blocked",
+                  "label": "Fehlende Netzwerkvorbereitung untersucht"
+                },
+                {
+                  "event": "runtime.image-blocked",
+                  "label": "Fehlendes Image bei verfügbarer Vorbereitung untersucht"
+                },
+                {
+                  "event": "runtime.not-ready",
+                  "label": "Laufenden, nicht bereiten Container untersucht"
+                },
+                {
+                  "event": "runtime.ready",
+                  "label": "Vorbereitung und Bereitschaft wiederhergestellt"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "project",
+        "title": "4 · Im Teamboard-Projekt anwenden",
+        "navLabel": "Praxis",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Teamboards Backend sollte erst Ready melden, wenn es seine Aufgabe erfüllen kann. Eine Probe, die nur das Vorhandensein des Prozesses prüft, kann abhängige Fehler übersehen."
+          },
+          {
+            "type": "text",
+            "text": "Die Datenbank darf bei einer kurzen Abhängigkeitsstörung nicht durch eine unbedachte Liveness-Probe in eine dauernde Neustartschleife geraten. Probe-Design gehört zur Anwendung."
+          },
+          {
+            "type": "callout",
+            "tone": "tip",
+            "title": "5 · Fehleranalyse",
+            "text": "Beginne bei Pod-Events und Containerstatus. ImagePullBackOff, CrashLoopBackOff und nicht bestandene Readiness beschreiben unterschiedliche Situationen; „Pod läuft nicht“ ist dafür zu ungenau."
+          },
+          {
+            "type": "task",
+            "id": "expert",
+            "title": "Expert-Challenge · Transfer auf die Architektur",
+            "prompt": "Warum ist ein erfolgreicher Image-Pull noch kein Beleg für einen gesunden Pod?",
+            "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+            "solution": "Der Prozess kann beim Start abstürzen, notwendige Konfiguration kann fehlen, und Probes können weiterhin scheitern. Image-Verfügbarkeit ist nur eine Voraussetzung.",
+            "verification": {
+              "kind": "reflection"
+            }
+          }
+        ]
+      },
+      {
+        "id": "knowledge",
+        "title": "6 · Wissenscheck",
+        "navLabel": "Wissenscheck",
+        "blocks": [
+          {
+            "type": "quiz",
+            "id": "theory",
+            "title": "Kannst du die Zusammenhänge erklären?",
+            "questions": [
+              {
+                "id": "q1",
+                "prompt": "Was ist CRI?",
+                "answers": [
+                  "Die Schnittstelle zwischen kubelet und kompatibler Runtime",
+                  "Ein Ersatz für etcd",
+                  "Ein DNS-Protokoll"
+                ],
+                "correct": 0,
+                "explanation": "CRI trennt kubelet von konkreten Runtime-Implementierungen."
+              },
+              {
+                "id": "q2",
+                "prompt": "Ein Container läuft, die Readiness-Probe scheitert. Was ist möglich?",
+                "answers": [
+                  "Der Container kann überhaupt nicht existieren",
+                  "Der Pod ist für regulären Service-Verkehr nicht bereit",
+                  "Der Scheduler muss das Image herunterladen"
+                ],
+                "correct": 1,
+                "explanation": "Laufzeitstatus und Readiness sind getrennte Beobachtungen."
+              },
+              {
+                "id": "q3",
+                "prompt": "Wer führt die Platzierungsentscheidung aus?",
+                "answers": [
+                  "etcd startet die Prozesse",
+                  "CoreDNS ruft runc auf",
+                  "kubelet koordiniert die lokale Runtime"
+                ],
+                "correct": 2,
+                "explanation": "Nach der Bindung liegt die lokale Ausführung beim Node-Agenten und seinen Integrationen."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "component-failures",
+    "title": "Was passiert bei einem Komponenten- oder Node-Ausfall?",
+    "description": "Fehlerdomänen, verbleibende Fähigkeiten und Recovery-Grenzen begründet beurteilen.",
+    "level": "Expert",
+    "duration": 35,
+    "goals": [
+      "Koordinationsausfall von Workload-Ausfall trennen",
+      "Den Umfang einer Störung aus der Topologie ableiten",
+      "Recovery ohne falsche Sofortgarantien planen"
+    ],
+    "sources": [
+      {
+        "title": "Nodes und Node Controller",
+        "url": "https://kubernetes.io/docs/concepts/architecture/nodes/"
+      },
+      {
+        "title": "Pod Disruptions",
+        "url": "https://kubernetes.io/docs/concepts/workloads/pods/disruptions/"
+      },
+      {
+        "title": "etcd-Fehlermodi",
+        "url": "https://etcd.io/docs/v3.5/op-guide/failures/"
+      }
+    ],
+    "$schema": "../../packages/lesson-engine/lesson.schema.json",
+    "schemaVersion": 1,
+    "moduleId": "03",
+    "category": "KUBERNETES ARCHITECTURE",
+    "reviewedOn": "2026-10-11",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "1 · Das Problem verstehen",
+        "navLabel": "Einführung",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Enterprise-Planung beginnt mit konkreten Ausfallszenarien. „Kubernetes heilt sich selbst“ ist dafür zu ungenau. Welche Komponente fehlt, welche Instanzen existieren weiterhin und welche Daten sind noch verfügbar?"
+          },
+          {
+            "type": "text",
+            "text": "Unser Failure Simulator betrachtet eine kleine Control Plane ohne redundante Ersatzinstanzen und zwei Worker. Er beschreibt Fähigkeiten, keine garantierten Wiederherstellungszeiten. Netzwerkpartitionen können schwieriger sein als ein sauber ausgeschalteter Prozess."
+          }
+        ]
+      },
+      {
+        "id": "deep-dive",
+        "title": "2 · Technischer Deep Dive",
+        "navLabel": "Deep Dive",
+        "blocks": [
+          {
+            "type": "heading",
+            "text": "Ausfall der Koordination"
+          },
+          {
+            "type": "text",
+            "text": "Ohne erreichbaren API Server können normale Clients und Regelkreise keinen regulären API-Fortschritt erzielen. Ohne Scheduler bleiben neue ungebundene Pods ungeplant. Ohne zuständigen Controller können fehlende Replikate unerkannt oder unbearbeitet bleiben. Bereits laufende Container werden dadurch nicht pauschal sofort beendet."
+          },
+          {
+            "type": "heading",
+            "text": "Worker-Ausfall und Ersatz"
+          },
+          {
+            "type": "text",
+            "text": "Auf einem tatsächlich ausgeschalteten Worker laufen seine Container nicht weiter. Die Control Plane muss den Ausfall erst erkennen und entsprechend ihren Regeln reagieren. Ersatz braucht Controller, Scheduler, passende Kapazität und gegebenenfalls nutzbare Volumes. Eine Pod-Identität wandert nicht unverändert auf einen anderen Node."
+          },
+          {
+            "type": "heading",
+            "text": "Stateful Recovery und Quorum"
+          },
+          {
+            "type": "text",
+            "text": "Bei etcd entscheidet die verbliebene Mehrheit über konsistente Writes. Bei PostgreSQL gelten zusätzlich die Regeln des Datenbank-Operators, Replikationszustand, Storage-Zugriff und Schutz vor konkurrierenden Primärinstanzen. Ein Kubernetes-Pod-Neustart ist keine vollständige Datenbank-Recovery."
+          }
+        ]
+      },
+      {
+        "id": "experiment",
+        "title": "3 · Erkunden und experimentieren",
+        "navLabel": "Experiment",
+        "blocks": [
+          {
+            "type": "experiment",
+            "id": "model",
+            "kind": "failure"
+          },
+          {
+            "type": "task",
+            "id": "practice",
+            "title": "Deine Aufgabe",
+            "prompt": "Vergleiche Scheduler-, API- und Worker-Ausfall. Begründe jeweils, ob bestehende Container weiterlaufen können, neue Pods platziert werden können und welche Diagnose zuerst sinnvoll ist.",
+            "hint": "Frage getrennt nach gespeicherten Zielen, Planung, lokaler Ausführung und Datenzugriff.",
+            "solution": "Scheduler-Ausfall blockiert neue automatische Bindungen, API-Ausfall die normale zentrale Koordination, Worker-Ausfall die lokalen Workloads dieses Nodes. Ersatz und Wiederherstellungszeit sind keine sofortige Garantie.",
+            "verification": {
+              "kind": "matching",
+              "instruction": "Ordne die Beobachtungen den passenden Zuständigkeiten zu. Die Prüfung wertet jede Zuordnung aus.",
+              "options": [
+                "Scheduler-Ausfall",
+                "API-Ausfall",
+                "worker-01 ausgeschaltet",
+                "Controller-Ausfall",
+                "etcd-Quorumverlust"
+              ],
+              "items": [
+                {
+                  "prompt": "Neue ungebundene Pods erhalten keine automatische Node-Zuweisung",
+                  "answer": "Scheduler-Ausfall"
+                },
+                {
+                  "prompt": "Normale API-Schreibvorgänge sind blockiert",
+                  "answer": "API-Ausfall"
+                },
+                {
+                  "prompt": "Lokale Container auf worker-01 stoppen",
+                  "answer": "worker-01 ausgeschaltet"
+                },
+                {
+                  "prompt": "Fehlende ReplicaSet-Pods werden nicht ersetzt",
+                  "answer": "Controller-Ausfall"
+                },
+                {
+                  "prompt": "Zustandsänderungen können ohne Mehrheit nicht bestätigt werden",
+                  "answer": "etcd-Quorumverlust"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "project",
+        "title": "4 · Im Teamboard-Projekt anwenden",
+        "navLabel": "Praxis",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Plane für Teamboard eine Ausfallmatrix: Control Plane, Worker, Netzwerk, Storage und Datenbank. Dokumentiere, welche Redundanz, Kapazität und Backups jede Fehlerdomäne abdecken."
+          },
+          {
+            "type": "text",
+            "text": "Ein späterer Wiederherstellungstest muss Anwendungsdaten und Zugriff prüfen, nicht bloß grüne Node-Zustände. Das ist eine Betriebsanforderung, die reine Browsermodelle nicht beweisen können."
+          },
+          {
+            "type": "callout",
+            "tone": "tip",
+            "title": "5 · Fehleranalyse",
+            "text": "Trenne fehlende Beobachtbarkeit von tatsächlichem Workload-Ausfall. Bei unerreichbarem Node kann der letzte gemeldete Status veraltet sein. Erzwinge bei Datenbanken keine zweite Primärinstanz, bevor Fencing und Datenzustand geklärt sind."
+          },
+          {
+            "type": "task",
+            "id": "expert",
+            "title": "Expert-Challenge · Transfer auf die Architektur",
+            "prompt": "Ein API-Endpunkt ist nicht erreichbar, Nutzer können Teamboard aber weiter bedienen. Warum ist das plausibel und trotzdem kritisch?",
+            "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+            "solution": "Bestehende Datenpfade und Container können weiterarbeiten. Änderungen, neue Platzierungen, Fehlerkorrektur und verlässliche Statusbeobachtung sind jedoch eingeschränkt; der nächste Workload-Ausfall kann sich nicht normal erholen.",
+            "verification": {
+              "kind": "reflection"
+            }
+          }
+        ]
+      },
+      {
+        "id": "knowledge",
+        "title": "6 · Wissenscheck",
+        "navLabel": "Wissenscheck",
+        "blocks": [
+          {
+            "type": "quiz",
+            "id": "theory",
+            "title": "Kannst du die Zusammenhänge erklären?",
+            "questions": [
+              {
+                "id": "q1",
+                "prompt": "Was blockiert ein alleiniger Scheduler-Ausfall typischerweise zuerst?",
+                "answers": [
+                  "Neue automatische Node-Zuweisungen",
+                  "Alle bestehenden TCP-Verbindungen",
+                  "Sämtliche etcd-Lesezugriffe"
+                ],
+                "correct": 0,
+                "explanation": "Bereits gebundene und laufende Pods hängen nicht bei jeder Aktion vom Scheduler ab."
+              },
+              {
+                "id": "q2",
+                "prompt": "Was braucht Ersatz nach einem Worker-Ausfall zusätzlich zu einem Deployment?",
+                "answers": [
+                  "Nur einen neuen Namespace",
+                  "Funktionsfähige Koordination, Kapazität und nötige Abhängigkeiten",
+                  "Eine manuelle Umbenennung des ausgefallenen Pods"
+                ],
+                "correct": 1,
+                "explanation": "Ein Sollzustand kann nur mit geeigneten Ressourcen und erreichbaren Abhängigkeiten erfüllt werden."
+              },
+              {
+                "id": "q3",
+                "prompt": "Welche Aussage ist eine belastbare Enterprise-Planung?",
+                "answers": [
+                  "Drei beliebige Pods beweisen HA",
+                  "Ein grüner Node beweist Datenwiederherstellung",
+                  "Redundanz und Recovery werden pro Fehlerdomäne und Datenpfad geprüft"
+                ],
+                "correct": 2,
+                "explanation": "Verfügbarkeit und Wiederherstellung sind Systemeigenschaften und müssen entsprechend geprüft werden."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "apply-to-pod",
+    "title": "Von kubectl apply zum bereiten Pod",
+    "description": "Alle Zuständigkeiten zu einem Ende-zu-Ende-Ablauf verbinden.",
+    "level": "Fundamentals",
+    "duration": 30,
+    "goals": [
+      "Den gesamten logischen Ablauf erklären",
+      "Objekte und Prozesse in der richtigen Reihenfolge zuordnen",
+      "Den ersten blockierten Übergang diagnostizieren"
+    ],
+    "sources": [
+      {
+        "title": "Deployments",
+        "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+      },
+      {
+        "title": "Pod-Lebenszyklus",
+        "url": "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+      }
+    ],
+    "$schema": "../../packages/lesson-engine/lesson.schema.json",
+    "schemaVersion": 1,
+    "moduleId": "03",
+    "category": "KUBERNETES ARCHITECTURE",
+    "reviewedOn": "2026-10-11",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "1 · Das Problem verstehen",
+        "navLabel": "Einführung",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Jetzt verbinden wir die Bausteine. Du wendest Teamboards Backend-Deployment an. Danach entstehen über mehrere Regelkreise die Ressourcen und schließlich Container. Die Komponenten arbeiten asynchron; ein vereinfachter Ablauf hilft, ihre Zuständigkeiten zu verstehen."
+          },
+          {
+            "type": "text",
+            "text": "Der Request Flow zeigt deshalb einen logischen Pfad, keine synchrone Aufrufkette. Die Bestätigung des Deployment-Schreibens liegt weit vor einer möglichen Readiness des neuen Pods."
+          }
+        ]
+      },
+      {
+        "id": "deep-dive",
+        "title": "2 · Technischer Deep Dive",
+        "navLabel": "Deep Dive",
+        "blocks": [
+          {
+            "type": "heading",
+            "text": "Drei unterschiedliche Arten von Fortschritt"
+          },
+          {
+            "type": "text",
+            "text": "API-Fortschritt: das Ziel wurde angenommen. Controller-Fortschritt: ReplicaSet und Pod-Objekte existieren. Ausführungsfortschritt: ein Node ist zugewiesen, Container starten und werden bereit. Jede Ebene besitzt eigene Fehler und Beobachtungen."
+          },
+          {
+            "type": "heading",
+            "text": "Beobachtungen zusammenführen"
+          },
+          {
+            "type": "text",
+            "text": "Deployment-, ReplicaSet- und Pod-Status beschreiben unterschiedliche Objekte. Events ergänzen Ursachen, sind aber kein unbegrenzt haltbares Audit-Log. Im echten Cluster kombinierst du Objektstatus, Events und bei Bedarf Komponentenlogs; im Browsermodell werden ausgewählte Schritte sofort dargestellt."
+          },
+          {
+            "type": "heading",
+            "text": "Vom Pod zur Anwendung"
+          },
+          {
+            "type": "text",
+            "text": "Auch ein bereiter Pod allein garantiert noch nicht den gesamten Ende-zu-Ende-Zugriff. Service-Selektoren, Zielports, Netzwerkrichtlinien und externer Traffic müssen passen. Die weiterführenden Module bauen diese Schichten auf derselben Teamboard-Anwendung auf."
+          },
+          {
+            "type": "code",
+            "language": "yaml",
+            "filename": "backend.yaml",
+            "execution": "example",
+            "caption": "Ausschnitt des gewünschten Zustands; kein vollständiges Deployment-Manifest.",
+            "code": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: teamboard-backend\nspec:\n  replicas: 3\n"
+          },
+          {
+            "type": "code",
+            "language": "text",
+            "execution": "output",
+            "caption": "Illustrative kubectl-Ausgabe während eines Rollouts; nicht von einem echten Cluster abgerufen.",
+            "code": "NAME                READY   UP-TO-DATE   AVAILABLE\nteamboard-backend   1/3     3            1"
+          },
+          {
+            "type": "callout",
+            "tone": "warning",
+            "title": "API-Erfolg ist keine Bereitschaftsgarantie",
+            "text": "Der angenommene Sollzustand und die beobachteten bereiten Instanzen können zeitlich auseinanderliegen."
+          }
+        ]
+      },
+      {
+        "id": "experiment",
+        "title": "3 · Erkunden und experimentieren",
+        "navLabel": "Experiment",
+        "blocks": [
+          {
+            "type": "experiment",
+            "id": "model",
+            "kind": "flow"
+          },
+          {
+            "type": "task",
+            "id": "practice",
+            "title": "Deine Aufgabe",
+            "prompt": "Gehe den Request Flow bis zur API-Annahme durch. Sage vor jedem weiteren Schritt voraus, welche Ressource oder welcher Prozess als Nächstes entsteht. Öffne danach den YAML-Spielplatz und vergleiche seine sofortige Simulation mit diesem Ablauf.",
+            "hint": "Deployment → ReplicaSet → Pod-Objekt → Node-Zuweisung → Runtime → Readiness.",
+            "solution": "Das Browser-Lab fasst mehrere Regelkreise zusammen. Ein echtes System kann zwischen jedem dieser Schritte warten oder scheitern; API-Annahme allein bestätigt keinen laufenden oder bereiten Pod.",
+            "verification": {
+              "kind": "matching",
+              "instruction": "Ordne die Beobachtungen den passenden Zuständigkeiten zu. Die Prüfung wertet jede Zuordnung aus.",
+              "options": [
+                "API Server",
+                "etcd",
+                "Deployment-Controller",
+                "ReplicaSet-Controller",
+                "Scheduler",
+                "kubelet / Runtime"
+              ],
+              "items": [
+                {
+                  "prompt": "1 · Gewünschtes Deployment entgegennehmen",
+                  "answer": "API Server"
+                },
+                {
+                  "prompt": "2 · Angenommenes Ziel dauerhaft speichern",
+                  "answer": "etcd"
+                },
+                {
+                  "prompt": "3 · ReplicaSet verwalten",
+                  "answer": "Deployment-Controller"
+                },
+                {
+                  "prompt": "4 · Pod-Objekte anfordern",
+                  "answer": "ReplicaSet-Controller"
+                },
+                {
+                  "prompt": "5 · Node auswählen und binden",
+                  "answer": "Scheduler"
+                },
+                {
+                  "prompt": "6 · Container starten lassen",
+                  "answer": "kubelet / Runtime"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "project",
+        "title": "4 · Im Teamboard-Projekt anwenden",
+        "navLabel": "Praxis",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Für Teamboards Pipeline sollen spätere Deployments auf ein Rollout-Ergebnis warten, nicht nur auf einen erfolgreichen Apply-Prozess. Definiere außerdem, was Anwendungsbereitschaft bedeutet."
+          },
+          {
+            "type": "text",
+            "text": "Die gespeicherte YAML-Datei und die angewendeten Ressourcen können auseinanderliegen. Das Operations Lab markiert diesen Unterschied; der Visualizer zeigt den angewendeten Zustand."
+          },
+          {
+            "type": "callout",
+            "tone": "tip",
+            "title": "5 · Fehleranalyse",
+            "text": "Finde den ersten nicht erreichten Übergang. Fehlt schon das Pod-Objekt, untersuche nicht zuerst dessen Prozesslogs. Ist der Pod gebunden, aber das Image fehlt, hilft eine neue Scheduler-Regel meist nicht."
+          },
+          {
+            "type": "task",
+            "id": "expert",
+            "title": "Expert-Challenge · Transfer auf die Architektur",
+            "prompt": "Ein Service hat null Endpunkte, obwohl das Deployment drei Replikate verlangt. Welche drei Ursachen würdest du zuerst unterscheiden?",
+            "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+            "solution": "Es existieren noch keine passenden Pod-Objekte; die vorhandenen Pods sind nicht bereit; oder der Service-Selektor beziehungsweise Namespace passt nicht. Danach folgen Port- und Netzwerkanalyse.",
+            "verification": {
+              "kind": "reflection"
+            }
+          }
+        ]
+      },
+      {
+        "id": "knowledge",
+        "title": "6 · Wissenscheck",
+        "navLabel": "Wissenscheck",
+        "blocks": [
+          {
+            "type": "quiz",
+            "id": "theory",
+            "title": "Kannst du die Zusammenhänge erklären?",
+            "questions": [
+              {
+                "id": "q1",
+                "prompt": "Welche logische Reihenfolge passt?",
+                "answers": [
+                  "kubelet → etcd → kubectl",
+                  "Deployment → ReplicaSet → Pod → Bindung → Containerstart",
+                  "Service → Scheduler → Image-Build"
+                ],
+                "correct": 1,
+                "explanation": "Die Reihenfolge verbindet Zielobjekte, Platzierung und Ausführung; echte Schritte sind asynchron."
+              },
+              {
+                "id": "q2",
+                "prompt": "Welche Information zeigt der gespeicherte Cluster-Visualizer?",
+                "answers": [
+                  "Den angewendeten Simulationszustand",
+                  "Jede noch nicht angewendete Editoränderung als echten Pod",
+                  "Deinen lokalen produktiven Cluster"
+                ],
+                "correct": 0,
+                "explanation": "Entwurf und angewendetes Modell sind getrennt; es gibt keine echte Clusterverbindung."
+              },
+              {
+                "id": "q3",
+                "prompt": "Nach Apply-Erfolg gibt es noch keine Pod-Objekte. Was untersuchst du zuerst?",
+                "answers": [
+                  "Die nginx-Access-Logs des fehlenden Pods",
+                  "Das Browser-Theme",
+                  "Controller, ReplicaSet-Ziel und Fehler beim Erzeugen der Folgeobjekte"
+                ],
+                "correct": 2,
+                "explanation": "Die Diagnose folgt dem frühesten blockierten Übergang."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "controllers",
+    "title": "Controller Manager und Reconciliation",
+    "description": "Warum Kubernetes wiederholt auf Ziele hinarbeitet und nicht nur Befehle ausführt.",
+    "level": "Deep Dive",
+    "duration": 30,
+    "goals": [
+      "Deployment-, ReplicaSet- und Pod-Ebene trennen",
+      "Idempotente Regelkreise erklären",
+      "Null Replikate von einem Ausfall unterscheiden"
+    ],
+    "sources": [
+      {
+        "title": "Controller",
+        "url": "https://kubernetes.io/docs/concepts/architecture/controller/"
+      },
+      {
+        "title": "Deployments",
+        "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+      },
+      {
+        "title": "ReplicaSets",
+        "url": "https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/"
+      }
+    ],
+    "$schema": "../../packages/lesson-engine/lesson.schema.json",
+    "schemaVersion": 1,
+    "moduleId": "03",
+    "category": "KUBERNETES ARCHITECTURE",
+    "reviewedOn": "2026-10-11",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "1 · Das Problem verstehen",
+        "navLabel": "Einführung",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Ein Controller ist ein Regelkreis: beobachten, Zielabweichung bestimmen, eine geeignete Änderung veranlassen und erneut beobachten. Sein Blick kann veraltet sein. Die nächste Ausführung muss deshalb mit bereits erledigter Arbeit und parallelen Änderungen umgehen."
+          },
+          {
+            "type": "text",
+            "text": "Für Teamboards Backend beschreibt das Deployment die gewünschte Bereitstellung. Der Deployment-Controller verwaltet ReplicaSets, und der ReplicaSet-Controller kümmert sich um die Anzahl der zugehörigen Pod-Objekte. Der Controller Manager beherbergt mehrere solcher Controller."
+          }
+        ]
+      },
+      {
+        "id": "deep-dive",
+        "title": "2 · Technischer Deep Dive",
+        "navLabel": "Deep Dive",
+        "blocks": [
+          {
+            "type": "heading",
+            "text": "Objekte statt direkter Prozesssteuerung"
+          },
+          {
+            "type": "text",
+            "text": "Ein ReplicaSet-Controller fordert fehlende Pods über den API Server an. Er wählt nicht deren Node und startet nicht deren Runtime. OwnerReferences verknüpfen abhängige Ressourcen für Verwaltung und Garbage Collection. Labels allein sind keine vollständige Besitzbeziehung."
+          },
+          {
+            "type": "heading",
+            "text": "Wiederholung und Konflikte"
+          },
+          {
+            "type": "text",
+            "text": "Controller benutzen beobachteten Zustand und versuchen, ihre Zuständigkeit schrittweise zu erfüllen. Bei vorübergehenden Fehlern sind Wiederholungen mit Begrenzung und Backoff sinnvoll. Reconciliation bedeutet nicht eine global garantierte Reihenfolge aller Komponenten und nicht, dass jeder Fehler sofort geheilt wird."
+          },
+          {
+            "type": "heading",
+            "text": "Rollout und Bereitschaft"
+          },
+          {
+            "type": "text",
+            "text": "Bei einer neuen Pod-Vorlage kann ein Deployment ein neues ReplicaSet verwalten. Rollout-Einstellungen steuern die Zahl alter und neuer Instanzen. Existierende Pod-Objekte, laufende Container und bereite Anwendungsinstanzen sind verschiedene Zählungen; eine Readiness-Prüfung kann das Erreichen des Ziels verhindern."
+          }
+        ]
+      },
+      {
+        "id": "experiment",
+        "title": "3 · Erkunden und experimentieren",
+        "navLabel": "Experiment",
+        "blocks": [
+          {
+            "type": "experiment",
+            "id": "model",
+            "kind": "reconciliation"
+          },
+          {
+            "type": "task",
+            "id": "practice",
+            "title": "Deine Aufgabe",
+            "prompt": "Gehe von einer zu drei bereiten Instanzen durch den Regelkreis. Simuliere danach einen Ausfall. Nenne für jeden Übergang die verantwortliche Komponente.",
+            "hint": "Der Controller erzeugt Objekte; Scheduler und kubelet erledigen andere Schritte.",
+            "solution": "Controller fordern fehlende Pod-Objekte an, Scheduler binden diese, kubelet/Runtime starten die Container, Readiness und Status liefern neue Beobachtungen. Der nächste Regelkreis prüft erneut.",
+            "verification": {
+              "kind": "matching",
+              "instruction": "Ordne die Beobachtungen den passenden Zuständigkeiten zu. Die Prüfung wertet jede Zuordnung aus.",
+              "options": [
+                "Deployment-Controller",
+                "ReplicaSet-Controller",
+                "Scheduler",
+                "kubelet / Runtime",
+                "Readiness-Probe"
+              ],
+              "items": [
+                {
+                  "prompt": "Ein ReplicaSet für die Deployment-Vorlage verwalten",
+                  "answer": "Deployment-Controller"
+                },
+                {
+                  "prompt": "Zwei fehlende Pod-Objekte erzeugen lassen",
+                  "answer": "ReplicaSet-Controller"
+                },
+                {
+                  "prompt": "Die neuen Pods auf Nodes binden",
+                  "answer": "Scheduler"
+                },
+                {
+                  "prompt": "Container für zugewiesene Pods starten lassen",
+                  "answer": "kubelet / Runtime"
+                },
+                {
+                  "prompt": "Die Anwendungsbereitschaft prüfen",
+                  "answer": "Readiness-Probe"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "project",
+        "title": "4 · Im Teamboard-Projekt anwenden",
+        "navLabel": "Praxis",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Im Operations Lab bleibt ein auf replicas: 0 skaliertes Deployment absichtlich ohne Pods. Die Aufgabe „Verschwundene Workloads“ prüft, ob du den falschen Sollzustand erkennst."
+          },
+          {
+            "type": "text",
+            "text": "Selbstheilung von Teamboards Backend ersetzt keine korrekte Datenbankmigration. Ein Controller kann denselben fehlerhaften Container immer wieder erstellen."
+          },
+          {
+            "type": "callout",
+            "tone": "tip",
+            "title": "5 · Fehleranalyse",
+            "text": "Wenn ein Deployment existiert, aber keine Pods entstehen, untersuche ReplicaSets, Events, Admission und das gewünschte Replikat-Ziel. Mehrfaches Apply desselben unveränderten Manifests löst diese Ursachen nicht automatisch."
+          },
+          {
+            "type": "task",
+            "id": "expert",
+            "title": "Expert-Challenge · Transfer auf die Architektur",
+            "prompt": "Warum muss ein Controller nach einem Timeout erneut lesen, statt eine Erstellung blind beliebig oft zu wiederholen?",
+            "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+            "solution": "Der erste Schreibvorgang könnte erfolgreich gewesen sein, obwohl seine Antwort verloren ging. Eine erneute Beobachtung und eindeutige Objektidentitäten verhindern unnötige oder doppelte Arbeit.",
+            "verification": {
+              "kind": "reflection"
+            }
+          }
+        ]
+      },
+      {
+        "id": "knowledge",
+        "title": "6 · Wissenscheck",
+        "navLabel": "Wissenscheck",
+        "blocks": [
+          {
+            "type": "quiz",
+            "id": "theory",
+            "title": "Kannst du die Zusammenhänge erklären?",
+            "questions": [
+              {
+                "id": "q1",
+                "prompt": "Wer erzeugt normalerweise die Pod-Objekte eines ReplicaSets?",
+                "answers": [
+                  "Der ReplicaSet-Controller",
+                  "Der Scheduler",
+                  "CoreDNS"
+                ],
+                "correct": 0,
+                "explanation": "Der Scheduler platziert vorhandene ungebundene Pods; er erzeugt nicht die gewünschte Replikatanzahl."
+              },
+              {
+                "id": "q2",
+                "prompt": "Ein Deployment hat replicas: 0. Was sollte der Controller erreichen?",
+                "answers": [
+                  "Drei Pods als Sicherheitsreserve",
+                  "Null zugehörige aktive Pods",
+                  "Einen automatischen Fehlerstatus wegen ungültiger YAML"
+                ],
+                "correct": 1,
+                "explanation": "Null ist ein gültiger Sollzustand. Für die Anwendung kann er trotzdem unerwünscht sein."
+              },
+              {
+                "id": "q3",
+                "prompt": "Was garantiert Reconciliation nicht?",
+                "answers": [
+                  "Wiederholtes Vergleichen von Ziel und Beobachtung",
+                  "API-basierte Änderungen",
+                  "Sofortige Behebung beliebiger Anwendungsfehler"
+                ],
+                "correct": 2,
+                "explanation": "Eine kaputte Konfiguration oder Anwendung kann dauerhaft ein unerreichtes Ziel verursachen."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "control-plane",
+    "title": "Control Plane und Worker Nodes",
+    "description": "Zuständigkeiten, Kommunikationswege und die Grenzen der Rollen.",
+    "level": "Fundamentals",
+    "duration": 25,
+    "goals": [
+      "Koordination und Ausführung sauber trennen",
+      "API-basierte Kommunikation erklären",
+      "Eine kleine von einer hochverfügbaren Control Plane unterscheiden"
+    ],
+    "sources": [
+      {
+        "title": "Kubernetes-Komponenten",
+        "url": "https://kubernetes.io/docs/concepts/overview/components/"
+      },
+      {
+        "title": "Statische Pods",
+        "url": "https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/"
+      }
+    ],
+    "$schema": "../../packages/lesson-engine/lesson.schema.json",
+    "schemaVersion": 1,
+    "moduleId": "03",
+    "category": "KUBERNETES ARCHITECTURE",
+    "reviewedOn": "2026-10-11",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "1 · Das Problem verstehen",
+        "navLabel": "Einführung",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Die Control Plane nimmt Ziele entgegen und koordiniert ihre Umsetzung. Auf den Nodes führen kubelet und Container Runtime die zugewiesenen Pods aus. Die Rollen erklären Zuständigkeiten; sie sind keine unüberwindbare Trennung von Maschinentypen."
+          },
+          {
+            "type": "text",
+            "text": "Ein kubeadm-Control-Plane-Node hat ebenfalls kubelet und Runtime, unter anderem für statische Control-Plane-Pods. Ein standardmäßiger Taint verhindert typischerweise normale Workloads auf diesem Node. Eine Lab-Konfiguration kann anders aussehen als eine Produktionsplattform."
+          }
+        ]
+      },
+      {
+        "id": "deep-dive",
+        "title": "2 · Technischer Deep Dive",
+        "navLabel": "Deep Dive",
+        "blocks": [
+          {
+            "type": "heading",
+            "text": "Der API Server verbindet die Regelkreise"
+          },
+          {
+            "type": "text",
+            "text": "Scheduler und Controller beobachten API-Objekte und schreiben Änderungen zurück über die API. Sie starten keine Container per direktem SSH-Aufruf auf einem Worker. kubelet beobachtet seine Zuweisungen und meldet den Status. Zugriff auf etcd erfolgt durch den API Server, nicht durch jeden Worker."
+          },
+          {
+            "type": "heading",
+            "text": "Node Agent und Runtime"
+          },
+          {
+            "type": "text",
+            "text": "kubelet führt podbezogene Aufgaben aus und kommuniziert über CRI mit einer Runtime wie containerd. CNI sorgt für Pod-Netzwerkanbindung; CSI integriert Volumes. Mehrere dieser Schritte können unabhängig scheitern, obwohl der Node erreichbar ist."
+          },
+          {
+            "type": "heading",
+            "text": "Eine Rolle ist keine HA-Garantie"
+          },
+          {
+            "type": "text",
+            "text": "Drei Worker schützen nicht gegen den Ausfall einer einzigen Control Plane. Mehrere API-Server-Instanzen brauchen einen erreichbaren API-Endpunkt; etcd benötigt Quorum. Scheduler und Controller verwenden in HA-Konfigurationen Leader Election. Details der Topologie gehören in die spätere HA-Planung."
+          }
+        ]
+      },
+      {
+        "id": "experiment",
+        "title": "3 · Erkunden und experimentieren",
+        "navLabel": "Experiment",
+        "blocks": [
+          {
+            "type": "experiment",
+            "id": "model",
+            "kind": "architecture"
+          },
+          {
+            "type": "task",
+            "id": "practice",
+            "title": "Deine Aufgabe",
+            "prompt": "Klicke im Architekturdiagramm auf jeden Bestandteil. Erkläre jeweils, wer dort Zustand speichert, plant oder ausführt.",
+            "hint": "Nur der API Server spricht direkt mit etcd; kubelet ist ein Node-Agent.",
+            "solution": "etcd speichert, die API vermittelt, Controller gleichen Soll/Ist ab, der Scheduler bindet Pods, kubelet koordiniert deren lokale Ausführung über die Runtime.",
+            "verification": {
+              "kind": "matching",
+              "instruction": "Ordne die Beobachtungen den passenden Zuständigkeiten zu. Die Prüfung wertet jede Zuordnung aus.",
+              "options": [
+                "etcd",
+                "API Server",
+                "Scheduler",
+                "kubelet",
+                "Controller"
+              ],
+              "items": [
+                {
+                  "prompt": "Persistenz des Clusterzustands",
+                  "answer": "etcd"
+                },
+                {
+                  "prompt": "Zentrale API und Autorisierung",
+                  "answer": "API Server"
+                },
+                {
+                  "prompt": "Node-Zuweisung über die API schreiben",
+                  "answer": "Scheduler"
+                },
+                {
+                  "prompt": "Container über die Runtime betreuen",
+                  "answer": "kubelet"
+                },
+                {
+                  "prompt": "Fehlende Replikate ausgleichen",
+                  "answer": "Controller"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "project",
+        "title": "4 · Im Teamboard-Projekt anwenden",
+        "navLabel": "Praxis",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Teamboard bekommt zwei Worker für Workloads. Für ein echtes Enterprise-Design müssen wir die API-Erreichbarkeit und den etcd-Ausfallbereich separat planen."
+          },
+          {
+            "type": "text",
+            "text": "Zeichne die API-Kommunikation getrennt vom Anwendungsverkehr zwischen Frontend, Backend und PostgreSQL. Das Control-Plane-Diagramm ist kein Datenflussdiagramm für HTTP-Anfragen."
+          },
+          {
+            "type": "callout",
+            "tone": "tip",
+            "title": "5 · Fehleranalyse",
+            "text": "Wenn bestehende Pods laufen, neue aber nicht starten, untersuche zuerst, an welcher Koordinationsstufe der Fortschritt stoppt. Ein laufender Container beweist nicht, dass API, Scheduler und Controller gesund sind."
+          },
+          {
+            "type": "task",
+            "id": "expert",
+            "title": "Expert-Challenge · Transfer auf die Architektur",
+            "prompt": "Ist „auf Control-Plane-Nodes laufen niemals Pods“ richtig?",
+            "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+            "solution": "Nein. Bei kubeadm laufen Control-Plane-Komponenten typischerweise als statische Pods. Taints regeln die Zulassung weiterer Workloads, nicht die grundsätzliche Fähigkeit, Pods auszuführen.",
+            "verification": {
+              "kind": "reflection"
+            }
+          }
+        ]
+      },
+      {
+        "id": "knowledge",
+        "title": "6 · Wissenscheck",
+        "navLabel": "Wissenscheck",
+        "blocks": [
+          {
+            "type": "quiz",
+            "id": "theory",
+            "title": "Kannst du die Zusammenhänge erklären?",
+            "questions": [
+              {
+                "id": "q1",
+                "prompt": "Wer startet Container über die Runtime-Schnittstelle?",
+                "answers": [
+                  "kubelet",
+                  "etcd",
+                  "kubectl"
+                ],
+                "correct": 0,
+                "explanation": "kubelet koordiniert die lokale Ausführung und verwendet CRI."
+              },
+              {
+                "id": "q2",
+                "prompt": "Wie kommuniziert der Scheduler seinen Platzierungsentscheid?",
+                "answers": [
+                  "Per SSH zu containerd",
+                  "Über die Kubernetes-API",
+                  "Durch Änderung der Image-Datei"
+                ],
+                "correct": 1,
+                "explanation": "Die Bindung wird über die API geschrieben; kubelet beobachtet anschließend seine Zuweisung."
+              },
+              {
+                "id": "q3",
+                "prompt": "Drei Worker und eine Control Plane: Was bleibt ein Ausfallrisiko?",
+                "answers": [
+                  "Zu viele Namespaces",
+                  "Das Pod-Label app",
+                  "Die einzelne Control Plane"
+                ],
+                "correct": 2,
+                "explanation": "Worker-Replikation ersetzt keine hochverfügbare Koordination und Zustandsverwaltung."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cluster-basics",
+    "title": "Was ist Kubernetes – und was ist ein Cluster?",
+    "description": "Vom einzelnen Prozess zur deklarativ verwalteten Anwendungsplattform.",
+    "level": "Fundamentals",
+    "duration": 20,
+    "goals": [
+      "Cluster, Node, Pod und Container auseinanderhalten",
+      "Sollzustand von beobachtetem Zustand unterscheiden",
+      "Kubernetes von Anwendung und Infrastruktur abgrenzen"
+    ],
+    "sources": [
+      {
+        "title": "Kubernetes – Überblick",
+        "url": "https://kubernetes.io/docs/concepts/overview/"
+      },
+      {
+        "title": "Pods",
+        "url": "https://kubernetes.io/docs/concepts/workloads/pods/"
+      }
+    ],
+    "$schema": "../../packages/lesson-engine/lesson.schema.json",
+    "schemaVersion": 1,
+    "moduleId": "03",
+    "category": "KUBERNETES ARCHITECTURE",
+    "reviewedOn": "2026-10-11",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "1 · Das Problem verstehen",
+        "navLabel": "Einführung",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Unser Praxisprojekt heißt Teamboard: Ein Frontend spricht eine Backend-API an, die Daten in PostgreSQL speichert. Drei Prozesse auf einer Maschine funktionieren, bis ein Prozess abstürzt oder die Maschine ausfällt. Eine Plattform muss dann entscheiden, welche Instanzen fehlen und wo Ersatz laufen darf."
+          },
+          {
+            "type": "text",
+            "text": "Kubernetes beschreibt und koordiniert solche Workloads über eine API. Ein Cluster umfasst eine Control Plane und Nodes, auf denen Pods laufen können. Ein Pod ist die kleinste planbare Einheit; er kapselt einen oder mehrere eng zusammengehörige Container. Kubernetes liefert weder automatisch passende VMs noch eine korrekte Datenbank-Backupstrategie."
+          }
+        ]
+      },
+      {
+        "id": "deep-dive",
+        "title": "2 · Technischer Deep Dive",
+        "navLabel": "Deep Dive",
+        "blocks": [
+          {
+            "type": "heading",
+            "text": "Deklarativ bedeutet einen Zustand beschreiben"
+          },
+          {
+            "type": "text",
+            "text": "Ein Deployment mit replicas: 3 beschreibt drei gewünschte Pod-Instanzen. Controller vergleichen dieses Ziel wiederholt mit der beobachteten Realität. Die erfolgreiche API-Antwort bestätigt eine angenommene Änderung, nicht drei betriebsbereite Anwendungen. Beobachtungen können zeitlich hinter dem Ziel liegen."
+          },
+          {
+            "type": "heading",
+            "text": "Ressourcen sind API-Objekte"
+          },
+          {
+            "type": "text",
+            "text": "metadata identifiziert und beschriftet ein Objekt, spec beschreibt seine gewünschte Konfiguration, status enthält Beobachtungen der zuständigen Komponenten. Nicht jede Ressourcenart hat dieselben Felder. Ein Namespace grenzt viele API-Objekte logisch ab; er ist allein keine vollständige Netzwerk- oder Sicherheitsisolation."
+          },
+          {
+            "type": "heading",
+            "text": "Was zusammenbleibt – und was ersetzt werden kann"
+          },
+          {
+            "type": "text",
+            "text": "Container eines Pods teilen dessen Netzwerk-Namespace und können gemeinsam konfigurierte Volumes nutzen. Ein ersetzter Pod ist ein neues Objekt mit neuer UID und oft neuer IP. Ein Service bietet einen stabilen Zugang zu wechselnden geeigneten Endpunkten; persistente Daten brauchen eine eigene Storage-Strategie."
+          },
+          {
+            "type": "table",
+            "caption": "Zuständigkeiten im bestehenden Clusterbeispiel",
+            "headers": [
+              "Objekt",
+              "Aufgabe"
+            ],
+            "rows": [
+              [
+                "Deployment",
+                "Gewünschte Pod-Replikate beschreiben"
+              ],
+              [
+                "Pod",
+                "Planbare Einheit für zusammengehörige Container"
+              ],
+              [
+                "Service",
+                "Stabiler Zugang zu wechselnden Endpunkten"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "id": "experiment",
+        "title": "3 · Erkunden und experimentieren",
+        "navLabel": "Experiment",
+        "blocks": [
+          {
+            "type": "experiment",
+            "id": "model",
+            "kind": "architecture"
+          },
+          {
+            "type": "task",
+            "id": "practice",
+            "title": "Deine Aufgabe",
+            "prompt": "Ordne API Server, etcd, Scheduler, kubelet und containerd der Koordination oder Ausführung zu. Welche Teile brauchst du, wenn Teamboard von zwei auf drei Backend-Instanzen wächst?",
+            "hint": "Das Ziel wird zentral gespeichert. Auswahl und tatsächlicher Start sind getrennte Schritte.",
+            "solution": "API Server und etcd nehmen das neue Ziel auf; Controller erzeugen fehlende Pod-Objekte; der Scheduler wählt Nodes; kubelet und Runtime starten Container. Keine einzelne Komponente erledigt den gesamten Ablauf.",
+            "verification": {
+              "kind": "matching",
+              "instruction": "Ordne die Beobachtungen den passenden Zuständigkeiten zu. Die Prüfung wertet jede Zuordnung aus.",
+              "options": [
+                "API Server",
+                "etcd",
+                "Controller",
+                "Scheduler",
+                "kubelet"
+              ],
+              "items": [
+                {
+                  "prompt": "Das Ziel des Deployments entgegennehmen",
+                  "answer": "API Server"
+                },
+                {
+                  "prompt": "Akzeptierten Clusterzustand speichern",
+                  "answer": "etcd"
+                },
+                {
+                  "prompt": "Fehlende Pod-Objekte anfordern",
+                  "answer": "Controller"
+                },
+                {
+                  "prompt": "Einen geeigneten Node auswählen",
+                  "answer": "Scheduler"
+                },
+                {
+                  "prompt": "Container über CRI starten lassen",
+                  "answer": "kubelet"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "project",
+        "title": "4 · Im Teamboard-Projekt anwenden",
+        "navLabel": "Praxis",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Teamboards Frontend und API lassen sich später als Deployments betreiben. PostgreSQL benötigt zusätzlich persistente Volumes, eine geregelte Primärrolle und ein Wiederherstellungsverfahren. Mehr Replikate allein machen eine Datenbank nicht korrekt hochverfügbar."
+          },
+          {
+            "type": "text",
+            "text": "Plane zuerst Fehlerdomänen und Datenhaltung. Kubernetes kann die gewünschte Anzahl von Instanzen nur erreichen, wenn Ressourcen, Images und Abhängigkeiten verfügbar sind."
+          },
+          {
+            "type": "callout",
+            "tone": "tip",
+            "title": "5 · Fehleranalyse",
+            "text": "„Deployment erstellt“ und „Anwendung erreichbar“ sind verschiedene Beobachtungen. Prüfe nach dem API-Erfolg Pod-Status, Readiness und Service-Endpunkte."
+          },
+          {
+            "type": "task",
+            "id": "expert",
+            "title": "Expert-Challenge · Transfer auf die Architektur",
+            "prompt": "Warum sind drei Backend-Pods auf demselben Node keine Absicherung gegen einen Node-Ausfall?",
+            "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+            "solution": "Alle teilen eine Fehlerdomäne. Fällt der Node aus, können alle drei gleichzeitig verloren gehen. Verteilung über Nodes oder Zonen braucht geeignete Platzierungsregeln, freie Kapazität und verfügbare Abhängigkeiten.",
+            "verification": {
+              "kind": "reflection"
+            }
+          }
+        ]
+      },
+      {
+        "id": "knowledge",
+        "title": "6 · Wissenscheck",
+        "navLabel": "Wissenscheck",
+        "blocks": [
+          {
+            "type": "quiz",
+            "id": "theory",
+            "title": "Kannst du die Zusammenhänge erklären?",
+            "questions": [
+              {
+                "id": "q1",
+                "prompt": "Welche Einheit plant der Scheduler auf einen Node?",
+                "answers": [
+                  "Einzelne Container unabhängig voneinander",
+                  "Pods",
+                  "Namespaces"
+                ],
+                "correct": 1,
+                "explanation": "Scheduling weist Pods Nodes zu. kubelet organisiert danach die Container innerhalb eines Pods."
+              },
+              {
+                "id": "q2",
+                "prompt": "Was bestätigt ein erfolgreich angenommenes Deployment zunächst?",
+                "answers": [
+                  "Der gewünschte Zustand wurde von der API akzeptiert",
+                  "Alle Pods sind Ready",
+                  "Die Datenbank ist gesichert"
+                ],
+                "correct": 0,
+                "explanation": "Die verteilten Regelkreise arbeiten danach weiter. API-Erfolg ist keine Bereitschaftsgarantie."
+              },
+              {
+                "id": "q3",
+                "prompt": "Welche Planung fehlt, wenn alle Replikate auf einer Maschine laufen?",
+                "answers": [
+                  "Ein zusätzlicher Namespace",
+                  "Ein neuer Image-Tag",
+                  "Die Verteilung über unabhängige Fehlerdomänen"
+                ],
+                "correct": 2,
+                "explanation": "Replikation und Verteilung lösen unterschiedliche Probleme. Ein Node-Ausfall kann sämtliche lokalen Instanzen treffen."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "etcd",
+    "title": "etcd, Desired State und Quorum",
+    "description": "Konsens, Revisionen und den Unterschied zwischen Ausfall und Datenverlust verstehen.",
+    "level": "Deep Dive",
+    "duration": 35,
+    "goals": [
+      "Mehrheitsquorum für drei und fünf Mitglieder berechnen",
+      "Leader-Ausfall von Mehrheitsverlust unterscheiden",
+      "Auswirkungen auf API und laufende Workloads begrenzen"
+    ],
+    "sources": [
+      {
+        "title": "etcd: Fehlermodi",
+        "url": "https://etcd.io/docs/v3.5/op-guide/failures/"
+      },
+      {
+        "title": "etcd: Datenmodell",
+        "url": "https://etcd.io/docs/v3.6/learning/data_model/"
+      },
+      {
+        "title": "Kubernetes API-Konzepte",
+        "url": "https://kubernetes.io/docs/reference/using-api/api-concepts/"
+      }
+    ],
+    "$schema": "../../packages/lesson-engine/lesson.schema.json",
+    "schemaVersion": 1,
+    "moduleId": "03",
+    "category": "KUBERNETES ARCHITECTURE",
+    "reviewedOn": "2026-10-11",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "1 · Das Problem verstehen",
+        "navLabel": "Einführung",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Kubernetes braucht einen dauerhaften, konsistenten Zustand, damit Komponenten nach einem Neustart weiterarbeiten können. etcd ist der verteilte Key-Value-Store hinter dieser Zustandsverwaltung. Er enthält Kubernetes-Objekte; er ersetzt nicht Teamboards PostgreSQL-Datenbank."
+          },
+          {
+            "type": "text",
+            "text": "Ein Schreibvorgang soll nicht auf zwei getrennten Seiten einer Netzpartition gleichzeitig widersprüchlich bestätigt werden. Raft organisiert deshalb Leader, Replikation und Mehrheitsentscheidungen."
+          }
+        ]
+      },
+      {
+        "id": "deep-dive",
+        "title": "2 · Technischer Deep Dive",
+        "navLabel": "Deep Dive",
+        "blocks": [
+          {
+            "type": "heading",
+            "text": "Quorum und Replikation"
+          },
+          {
+            "type": "text",
+            "text": "Für N abstimmende Mitglieder braucht eine Mehrheit floor(N/2)+1 Stimmen. Drei Mitglieder tolerieren einen, fünf tolerieren zwei Ausfälle. Die benötigte Mehrheit wird aus der konfigurierten Mitgliedschaft berechnet, nicht einfach aus den gerade erreichbaren Mitgliedern. Learner und Änderungen der Mitgliedschaft werden im Experiment nicht modelliert."
+          },
+          {
+            "type": "heading",
+            "text": "Leader Election und Partitionen"
+          },
+          {
+            "type": "text",
+            "text": "Fällt der Leader aus, können die verbleibenden Mitglieder mit Mehrheit einen neuen wählen. Während der Wahl können Schreibvorgänge pausieren. Eine Minderheit darf keine neuen Änderungen allein bestätigen. Unser Simulator macht die Wahl durch eine bewusste Schaltfläche sichtbar; echte Wahlen verwenden Zeitgeber und Protokollregeln."
+          },
+          {
+            "type": "heading",
+            "text": "Revisionen und Watches"
+          },
+          {
+            "type": "text",
+            "text": "Änderungen an Schlüsseln führen zu steigenden Revisionen. Watches beobachten Änderungen ab einem Bezugspunkt; nach Kompaktierung kann ein erneuter List-/Watch-Aufbau nötig sein. Kubernetes-Clients benutzen API-resourceVersion als opaken Konsistenzbezug. Die hier angezeigte Zählrevision bildet weder vollständige MVCC-Transaktionen noch Kubernetes-resourceVersion-Semantik ab."
+          }
+        ]
+      },
+      {
+        "id": "experiment",
+        "title": "3 · Erkunden und experimentieren",
+        "navLabel": "Experiment",
+        "blocks": [
+          {
+            "type": "experiment",
+            "id": "model",
+            "kind": "quorum"
+          },
+          {
+            "type": "task",
+            "id": "practice",
+            "title": "Deine Aufgabe",
+            "prompt": "Schreibe eine Änderung, schalte den Leader aus und wähle bei verbliebener Mehrheit einen neuen. Schalte dann einen weiteren Knoten aus. Begründe, warum Schreiben nun stoppt.",
+            "hint": "Bei drei Mitgliedern bleibt die Mehrheit zwei, selbst wenn nur ein Mitglied erreichbar ist.",
+            "solution": "Nach einem Ausfall können zwei von drei Mitgliedern einen Leader wählen und Änderungen bestätigen. Nach zwei Ausfällen gibt es keine Mehrheit. Ein einzelnes Mitglied darf das Quorum nicht auf sich selbst verkleinern.",
+            "verification": {
+              "kind": "experiment",
+              "experimentId": "model",
+              "requirements": [
+                {
+                  "event": "quorum.initial-write",
+                  "label": "Änderung bei drei erreichbaren Mitgliedern bestätigt"
+                },
+                {
+                  "event": "quorum.leader-missing",
+                  "label": "Schreiben nach Leader-Ausfall blockiert"
+                },
+                {
+                  "event": "quorum.recovered-write",
+                  "label": "Nach neuer Wahl wieder erfolgreich geschrieben"
+                },
+                {
+                  "event": "quorum.no-majority",
+                  "label": "Schreibversuch ohne Mehrheit blockiert"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "project",
+        "title": "4 · Im Teamboard-Projekt anwenden",
+        "navLabel": "Praxis",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Der Verlust von Quorum macht neue konsistente Schreibvorgänge unmöglich. Bereits laufende Container können weiterlaufen, sofern ihre lokalen Voraussetzungen bestehen. API-Leseverhalten hängt auch von Cache und gewünschter Konsistenz ab; „alle Reads funktionieren“ wäre ebenso falsch wie „alle Pods stoppen sofort“."
+          },
+          {
+            "type": "text",
+            "text": "Snapshots, gesicherte Wiederherstellungsverfahren und getrennte Fehlerdomänen sind Teil der späteren Enterprise-Planung. Mehr Mitglieder ersetzen keine Datensicherung."
+          },
+          {
+            "type": "callout",
+            "tone": "tip",
+            "title": "5 · Fehleranalyse",
+            "text": "Prüfe Mitgliedererreichbarkeit, Leader, Disk-Latenz und Zertifikate, bevor du Mitglieder entfernst. Eine Recovery nach Mehrheitsverlust muss dem etcd-Wiederherstellungsverfahren folgen; nicht mehrere unabhängige Wahrheiten erzwingen."
+          },
+          {
+            "type": "task",
+            "id": "expert",
+            "title": "Expert-Challenge · Transfer auf die Architektur",
+            "prompt": "Warum toleriert ein Cluster mit vier abstimmenden Mitgliedern nicht mehr Ausfälle als einer mit drei?",
+            "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+            "solution": "Vier benötigen drei Stimmen und tolerieren deshalb ebenfalls nur einen Ausfall. Fünf benötigen auch drei, können aber zwei Ausfälle verkraften.",
+            "verification": {
+              "kind": "reflection"
+            }
+          }
+        ]
+      },
+      {
+        "id": "knowledge",
+        "title": "6 · Wissenscheck",
+        "navLabel": "Wissenscheck",
+        "blocks": [
+          {
+            "type": "quiz",
+            "id": "theory",
+            "title": "Kannst du die Zusammenhänge erklären?",
+            "questions": [
+              {
+                "id": "q1",
+                "prompt": "Wie viele Stimmen braucht ein Cluster mit drei abstimmenden Mitgliedern?",
+                "answers": [
+                  "Eine, sobald die anderen ausfallen",
+                  "Zwei",
+                  "Immer drei"
+                ],
+                "correct": 1,
+                "explanation": "Die Mehrheit ist zwei von drei und schrumpft nicht bei Ausfällen."
+              },
+              {
+                "id": "q2",
+                "prompt": "Was ist nach einem Leader-Ausfall bei zwei verbleibenden Mitgliedern möglich?",
+                "answers": [
+                  "Eine neue Leader-Wahl und danach weitere Writes",
+                  "Sofortige Löschung aller Pods",
+                  "Automatische PostgreSQL-Wiederherstellung"
+                ],
+                "correct": 0,
+                "explanation": "Die Mehrheit besteht weiter; während der Leader-Wahl kann es eine Pause geben."
+              },
+              {
+                "id": "q3",
+                "prompt": "Welche Aussage über etcd-Ausfall ist korrekt?",
+                "answers": [
+                  "Jeder laufende Container muss sofort stoppen",
+                  "Worker schreiben ersatzweise direkt in eigene etcd-Dateien",
+                  "Bestehende Container können weiterlaufen; neue Zustandsänderungen sind eingeschränkt"
+                ],
+                "correct": 2,
+                "explanation": "Koordinationsausfall und lokale Workload-Ausführung sind getrennte Ebenen."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "scheduling",
+    "title": "Scheduler und Pod-Platzierung",
+    "description": "Ressourcen, harte Bedingungen und Tolerations gemeinsam betrachten.",
+    "level": "Deep Dive",
+    "duration": 30,
+    "goals": [
+      "Requests statt aktueller Nutzung für Ressourcenfilter verwenden",
+      "Harte Bedingungen von Präferenzen unterscheiden",
+      "Toleration nicht als Platzierungsgarantie missverstehen"
+    ],
+    "sources": [
+      {
+        "title": "Scheduling",
+        "url": "https://kubernetes.io/docs/concepts/scheduling-eviction/"
+      },
+      {
+        "title": "Taints und Tolerations",
+        "url": "https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/"
+      },
+      {
+        "title": "Ressourcenverwaltung",
+        "url": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/"
+      }
+    ],
+    "$schema": "../../packages/lesson-engine/lesson.schema.json",
+    "schemaVersion": 1,
+    "moduleId": "03",
+    "category": "KUBERNETES ARCHITECTURE",
+    "reviewedOn": "2026-10-11",
+    "sections": [
+      {
+        "id": "intro",
+        "title": "1 · Das Problem verstehen",
+        "navLabel": "Einführung",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Ein neu erzeugter Pod hat zunächst möglicherweise keinen Node. Der Scheduler sucht einen geeigneten Platz unter den aktuellen Bedingungen. Er kann keine fehlende Rechenleistung erzeugen und startet keine Container."
+          },
+          {
+            "type": "text",
+            "text": "Für Teamboards Backend soll genügend CPU reserviert werden; PostgreSQL könnte zusätzlich einen bestimmten Storage- oder Zonenbezug benötigen. Ein scheinbar freier Node ist nicht automatisch geeignet."
+          }
+        ]
+      },
+      {
+        "id": "deep-dive",
+        "title": "2 · Technischer Deep Dive",
+        "navLabel": "Deep Dive",
+        "blocks": [
+          {
+            "type": "heading",
+            "text": "Requests und verfügbare planbare Kapazität"
+          },
+          {
+            "type": "text",
+            "text": "Für die grundlegende Ressourcenentscheidung zählen Requests und bereits verplante Kapazität im Verhältnis zur Allocatable-Kapazität. Niedrige momentane CPU-Auslastung bedeutet nicht, dass noch genügend nicht verplante Requests verfügbar sind. Limits regeln eine andere Ebene der Ressourcennutzung."
+          },
+          {
+            "type": "heading",
+            "text": "Filtern, bewerten, binden"
+          },
+          {
+            "type": "text",
+            "text": "Harte Bedingungen wie nodeSelector oder required-Affinity können Kandidaten ausschließen. Scoring gewichtet die verbleibenden Kandidaten. Unser Playground nutzt nur CPU, einen exakten Node-Wunsch und einen NoSchedule-Taint; er wählt deterministisch den ersten passenden Node und bildet kein produktives Scoring nach."
+          },
+          {
+            "type": "heading",
+            "text": "Taints und Tolerations"
+          },
+          {
+            "type": "text",
+            "text": "Ein nicht tolerierter NoSchedule-Taint verhindert neue Platzierung. Eine passende Toleration erlaubt die Berücksichtigung, erzwingt diesen Node aber nicht. NoExecute betrifft auch die weitere Duldung bereits laufender Pods; das Experiment beschränkt sich auf NoSchedule. Ein bereits gebundener Pod wird nicht bei jeder Regeländerung neu verteilt."
+          }
+        ]
+      },
+      {
+        "id": "experiment",
+        "title": "3 · Erkunden und experimentieren",
+        "navLabel": "Experiment",
+        "blocks": [
+          {
+            "type": "experiment",
+            "id": "model",
+            "kind": "scheduler"
+          },
+          {
+            "type": "task",
+            "id": "practice",
+            "title": "Deine Aufgabe",
+            "prompt": "Fordere 3 vCPU auf worker-01 mit nur 2 freien vCPU an. Wechsle zu worker-02, versieh ihn mit einem NoSchedule-Taint und beobachte den Effekt einer Toleration.",
+            "hint": "Alle harten Bedingungen müssen gleichzeitig erfüllt sein.",
+            "solution": "worker-01 scheitert an Kapazität. worker-02 hat genug CPU, wird aber ohne passende Toleration ausgeschlossen. Die Toleration beseitigt diesen Ausschluss, nicht andere Ressourcen- oder Auswahlregeln.",
+            "verification": {
+              "kind": "experiment",
+              "experimentId": "model",
+              "requirements": [
+                {
+                  "event": "scheduler.capacity-blocked",
+                  "label": "3 vCPU auf worker-01: Kapazität blockiert"
+                },
+                {
+                  "event": "scheduler.taint-blocked",
+                  "label": "3 vCPU auf worker-02: Taint blockiert ohne Toleration"
+                },
+                {
+                  "event": "scheduler.tolerated",
+                  "label": "3 vCPU auf worker-02: Toleration erlaubt Platzierung"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "project",
+        "title": "4 · Im Teamboard-Projekt anwenden",
+        "navLabel": "Praxis",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Verteile Teamboards Replikate später mit geeigneten Topologie- und Affinitätsregeln. Prüfe dabei auch die Kapazität während eines Rollouts oder nach einem Node-Ausfall."
+          },
+          {
+            "type": "text",
+            "text": "Der HPA kann mehr Replikate verlangen, ohne dass dafür schon ein geeigneter Node existiert. Pod-Skalierung und Infrastruktur-Skalierung sind unterschiedliche Regelkreise."
+          },
+          {
+            "type": "callout",
+            "tone": "tip",
+            "title": "5 · Fehleranalyse",
+            "text": "Ein Pending-Pod braucht Diagnose, keine willkürlich niedrigeren Limits. Events können fehlende Requests-Kapazität, unpassende Taints oder nicht bindbare Volumes erklären."
+          },
+          {
+            "type": "task",
+            "id": "expert",
+            "title": "Expert-Challenge · Transfer auf die Architektur",
+            "prompt": "Warum kann ein Pod mit kleiner CPU-Anforderung trotzdem Pending bleiben?",
+            "hint": "Begründe deine Entscheidung, bevor du die Musterlösung öffnest.",
+            "solution": "CPU ist nur eine Bedingung. Speicher, Affinity, Taints, Topologie, Volume-Bindung und weitere Filter können sämtliche Nodes ausschließen.",
+            "verification": {
+              "kind": "reflection"
+            }
+          }
+        ]
+      },
+      {
+        "id": "knowledge",
+        "title": "6 · Wissenscheck",
+        "navLabel": "Wissenscheck",
+        "blocks": [
+          {
+            "type": "quiz",
+            "id": "theory",
+            "title": "Kannst du die Zusammenhänge erklären?",
+            "questions": [
+              {
+                "id": "q1",
+                "prompt": "Welche Größe ist für den grundlegenden CPU-Ressourcenfilter relevant?",
+                "answers": [
+                  "Nur die momentane CPU-Auslastung",
+                  "CPU-Requests im Verhältnis zur planbaren Kapazität",
+                  "Der Name des Images"
+                ],
+                "correct": 1,
+                "explanation": "Requests werden bei der Ressourcenplanung berücksichtigt; Live-Auslastung ist kein Ersatz dafür."
+              },
+              {
+                "id": "q2",
+                "prompt": "Was garantiert eine Toleration?",
+                "answers": [
+                  "Nur, dass der passende Taint diesen Pod nicht ausschließt",
+                  "Die Platzierung auf genau diesem Node",
+                  "Die automatische Vergrößerung des Nodes"
+                ],
+                "correct": 0,
+                "explanation": "Andere Filter und die Auswahlentscheidung gelten weiterhin."
+              },
+              {
+                "id": "q3",
+                "prompt": "Was folgt aus einer Scheduler-Bindung?",
+                "answers": [
+                  "Die Anwendung ist bereits Ready",
+                  "Der Service ist bereits erreichbar",
+                  "Ein Node ist zugewiesen; kubelet muss die Ausführung noch umsetzen"
+                ],
+                "correct": 2,
+                "explanation": "Zuweisung, Containerstart und Anwendungsbereitschaft sind getrennte Schritte."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]
