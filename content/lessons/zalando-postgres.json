@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "id": "zalando-postgres",
+  "moduleId": "11",
+  "title": "Zalando Postgres Operator verstehen und verwenden",
+  "description": "Vom PostgreSQL-Wunsch zur betreuten Datenbank: Manifest, Verbindungen und Diagnose ohne eigenen Cluster nachvollziehen.",
+  "category": "DATEN & OPERATOREN",
+  "level": "Fundamentals",
+  "duration": 15,
+  "goals": [
+    "Custom Resource, Operator und Datenbankprozess unterscheiden",
+    "Ein PostgreSQL-Manifest lesen und Verbindungsprobleme gezielt eingrenzen"
+  ],
+  "reviewedOn": "2026-10-28",
+  "sources": [
+    {
+      "title": "Zalando Postgres Operator · User Guide",
+      "url": "https://opensource.zalando.com/postgres-operator/docs/user.html"
+    },
+    {
+      "title": "Manifest reference",
+      "url": "https://github.com/zalando/postgres-operator/blob/master/docs/reference/cluster_manifest.md"
+    },
+    {
+      "title": "Quickstart und Verbindungen",
+      "url": "https://github.com/zalando/postgres-operator/blob/master/docs/quickstart.md"
+    },
+    {
+      "title": "Operator und Patroni",
+      "url": "https://github.com/zalando/postgres-operator"
+    }
+  ],
+  "sections": [
+    {
+      "id": "intro",
+      "title": "Eine Datenbank bestellen statt einzelne Pods betreuen",
+      "navLabel": "Einstieg",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Du arbeitest auf einem Cluster, auf dem der Zalando Postgres Operator bereits bereitgestellt ist. Deine Anwendung braucht PostgreSQL. Statt selbst alle untergeordneten Ressourcen anzulegen, beschreibst du eine **Custom Resource** vom Typ `postgresql`. Der Operator beobachtet diesen gewünschten Zustand und verwaltet dazu Kubernetes-Ressourcen. PostgreSQL verarbeitet weiterhin die SQL-Anfragen."
+        },
+        {
+          "type": "text",
+          "text": "Für diese Lektion brauchst du keinen Cluster und keine vorherige Clusterinstallation. Das Beispiel lässt sich vollständig im Browser lesen. Hilfreich sind Services und persistente Volumes; die Themenlinks führen dich bei Bedarf dorthin."
+        }
+      ]
+    },
+    {
+      "id": "manifest",
+      "title": "Den gewünschten Zustand lesen",
+      "navLabel": "Manifest",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Das folgende eigene Beispiel beschreibt zwei Datenbankinstanzen, Speicher und einen Anwendungsbenutzer. Es ist keine getestete Installationsanleitung: Operator, CRD, passende StorageClass und unterstützte PostgreSQL-/Spilo-Version müssen in einem echten Cluster bereits zusammenpassen."
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "example",
+          "caption": "Illustratives vollständiges Ressourcenbeispiel, keine Ausführung im Browser. PostgreSQL 17 ist hier ein Beispielwert; die freigegebene Version bestimmt das Clusterteam.",
+          "code": "apiVersion: acid.zalan.do/v1\nkind: postgresql\nmetadata:\n  name: shop-orders\n  namespace: default\nspec:\n  teamId: shop\n  numberOfInstances: 2\n  volume:\n    size: 5Gi\n  users:\n    shop_app: []\n  databases:\n    orders: shop_app\n  postgresql:\n    version: \"17\""
+        },
+        {
+          "type": "text",
+          "text": "`teamId` ordnet den Cluster einem Team zu. `numberOfInstances` beschreibt die gewünschte Zahl der Instanzen. `volume.size` ist eine Speicheranforderung; verfügbare Klassen und Kapazitäten bleiben eigene Voraussetzungen. `databases` verbindet einen Datenbanknamen mit seinem Besitzer. Der leere Rollenoptionssatz bei `shop_app` fordert keine Superuser-Rechte an."
+        },
+        {
+          "type": "text",
+          "text": "Die CRD macht die Ressourcenart für die API bekannt. Erst der laufende Operator setzt ihren Inhalt um. Ein angenommenes Manifest beweist daher weder verfügbare Volumes noch eine bereite Datenbank. Ein zweites Datenbank-Pod ist außerdem kein Backup gegen versehentlich gelöschte Bestellungen."
+        }
+      ]
+    },
+    {
+      "id": "connect",
+      "title": "Die Anwendung verbinden",
+      "navLabel": "Verbindung",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Der Operator richtet unter anderem Services und einen StatefulSet ein. Im üblichen Namensschema ist `shop-orders` der Service für den Primary, `shop-orders-repl` der Replica-Service. Prüfe die tatsächlichen Ressourcen und ihre Endpunkte, statt eine Pod-IP fest in der Anwendung zu hinterlegen. Schreibende Shop-Anfragen gehören zum Primary-Zugang."
+        },
+        {
+          "type": "text",
+          "text": "Zugangsdaten für Manifestbenutzer liegen in vom Operator verwalteten Secrets. Verwende die vereinbarte Secret-Referenz und den Datenbanknamen `orders` in der Anwendung. Kopiere keine echten Passwörter in KubeLab. Ein Secret allein beweist noch nicht, dass Konfiguration, DNS, Netzwerkfreigabe und Datenbankrolle zusammenpassen."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "caption": "Optionale lesende Diagnose auf einem bereits vorhandenen, autorisierten Cluster. KubeLab führt diese Befehle nicht aus.",
+          "code": "kubectl -n default get postgresql shop-orders\nkubectl -n default get pods -l application=spilo -L spilo-role\nkubectl -n default get service shop-orders shop-orders-repl\nkubectl -n default get pvc"
+        }
+      ]
+    },
+    {
+      "id": "diagnose",
+      "title": "Ein Beispiel schrittweise einordnen",
+      "navLabel": "Diagnose",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Angenommen, das Ressourcenobjekt existiert, aber ein PVC bleibt Pending. Das ist ein verfasster Lernfall, keine Live-Ausgabe. Prüfe die Storage-Anforderung und die verfügbaren Klassen, bevor du das SQL-Passwort änderst. Ein Fehler beim Mounten liegt vor der nutzbaren Datenbankverbindung."
+        },
+        {
+          "type": "text",
+          "text": "Sind Pods bereit, aber die App erreicht PostgreSQL nicht, vergleiche Service-Endpunkte, Namespace/DNS, Netzwerkregeln und den verwendeten Zugang. Ein Authentifizierungsfehler bei erreichbarer Datenbank weist auf eine andere Grenze als ein DNS-Fehler. Nach einer Korrektur prüfst du eine harmlose Testabfrage aus dem Anwendungskontext."
+        },
+        {
+          "type": "text",
+          "text": "Optional zum Nachdenken: Der Operator ist vorübergehend nicht erreichbar, bestehende Datenbankprozesse antworten weiterhin. Welche Aussage kannst du treffen? Du hast einen Nachweis für diese Verbindung, aber noch keinen Beleg für funktionierende neue Konfigurationsänderungen. Keine Quizabgabe ist zum Abschluss dieser Lektion nötig."
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "PostgreSQL-Replikation und Patroni",
+      "navLabel": "Deep Dive",
+      "collapsible": true,
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Der Operator verwaltet den Kubernetes-seitigen Lebenszyklus; Patroni in der Datenbanklaufzeit koordiniert PostgreSQL-Rollen und Failover. Diese Regelkreise sind von Kubernetes-Scheduling und dem etcd-Raft der Control Plane zu unterscheiden. Mehrere Pods allein garantieren weder ein erreichbares Primary noch Daten ohne Verlust."
+        },
+        {
+          "type": "text",
+          "text": "Replikationsverzug, verfügbare Fehlerdomänen, Zugriff auf die Koordination und die gewählten Datenbankeinstellungen bestimmen, was bei einem Ausfall möglich ist. Untersuche daher Rolle und Replikationszustand zusammen mit den Netzwerk- und Storage-Befunden. Ein Wechsel des Primary muss anschließend auch für den Client über den vorgesehenen Service nutzbar sein."
+        },
+        {
+          "type": "text",
+          "text": "Backup und Wiederherstellung sind ein eigener Vertrag. Ein Failover behebt keine logisch gelöschte Tabelle; Replikate können diese Änderung bereits übernommen haben. Ein belastbarer Restore-Test kontrolliert bekannte Datensätze und den gewünschten Wiederherstellungszeitpunkt. Konkrete Backup-Konfiguration und Recovery-Befehle bleiben einem separat geprüften Lab vorbehalten."
+        }
+      ]
+    }
+  ]
+}

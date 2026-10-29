@@ -1,3 +1,10 @@
+import {
+  Home,
+  Discover,
+  Paths,
+  PathDetail,
+  TopicPreview,
+} from "./pages/Learning";
 import { Academy } from "./pages/Academy";
 import { LessonPage } from "./pages/LessonPage";
 import { LabBackup } from "./components/LabBackup";
@@ -14,58 +21,42 @@ import {
   Routes,
   useLocation,
   useParams,
+  useSearchParams,
 } from "react-router-dom";
 import {
-  Activity,
-  ArrowUpRight,
   BookOpen,
   Box,
   Check,
-  CheckCircle2,
   ChevronRight,
   Clock3,
   Code2,
   Copy,
   Download,
   ExternalLink,
-  FlaskConical,
   Github,
   GraduationCap,
   HardDrive,
   Layers3,
-  LayoutDashboard,
   Menu,
   Moon,
   Network,
-  Play,
   RotateCcw,
   Settings2,
   ShieldCheck,
-  Sparkles,
   Sun,
   TerminalSquare,
   Upload,
   X,
 } from "lucide-react";
 import { useProgress, parseProgress } from "./stores/progress";
-import {
-  lessons,
-  phases,
-  practiceTasks,
-  basicPracticeTasks,
-  deepDiveTasks,
-  deepDiveMastered,
-  practiceMastered,
-} from "../../../packages/lesson-engine/src";
+import { lessons, deepDiveMastered } from "../../../packages/lesson-engine/src";
 import { schedule } from "../../../packages/cluster-model/src";
 import { ClusterGraph } from "./components/ClusterGraph";
 import { buildSteps } from "./pages/buildSteps";
 const nav = [
-  { to: "/", label: "Übersicht", icon: LayoutDashboard },
-  { to: "/academy", label: "Academy", icon: BookOpen },
-  { to: "/build", label: "Build Lab", icon: Layers3 },
-  { to: "/operations", label: "Operations Lab", icon: TerminalSquare },
-  { to: "/visualizer", label: "Visualizer", icon: Network },
+  { to: "/discover", label: "Entdecken", icon: BookOpen },
+  { to: "/paths", label: "Lernpfade", icon: GraduationCap },
+  { to: "/playground", label: "Playground", icon: TerminalSquare },
 ];
 function App() {
   const progress = useProgress();
@@ -79,9 +70,6 @@ function App() {
     setMenu(false);
     window.scrollTo(0, 0);
   }, [location.pathname]);
-  const pct = Math.round(
-    (progress.theoryCompleted.length / lessons.length) * 100,
-  );
   return (
     <>
       <a className="skip-link" href="#main">
@@ -111,16 +99,16 @@ function App() {
             <GraduationCap size={21} />
           </span>
           <strong>
-            Schritt für Schritt zum
+            Kubernetes verstehen.
             <br />
-            Kubernetes Engineer.
+            In deinem Tempo.
           </strong>
           <p>
-            Dein Wissen. Dein Cluster.
+            Deine Fragen. Dein Lernweg.
             <br />
             In deinem Tempo.
           </p>
-          <Link to="/academy">
+          <Link to="/paths">
             Lernpfad entdecken <ChevronRight size={16} />
           </Link>
         </div>
@@ -174,7 +162,16 @@ function App() {
                 ? "Einstellungen"
                 : nav.find(
                     (n) => n.to !== "/" && location.pathname.startsWith(n.to),
-                  )?.label || "Übersicht"}
+                  )?.label ||
+                  (location.pathname.startsWith("/academy")
+                    ? "Entdecken"
+                    : location.pathname.startsWith("/topics")
+                      ? "Entdecken"
+                      : ["/operations", "/visualizer", "/build"].includes(
+                            location.pathname,
+                          )
+                        ? "Playground"
+                        : "Startseite")}
             </strong>
           </div>
           <div className="topbar-right">
@@ -214,12 +211,23 @@ function App() {
             <div className="panel">Lernstand wird geladen …</div>
           ) : (
             <Routes>
-              <Route path="/" element={<Dashboard pct={pct} />} />
-              <Route path="/academy" element={<Academy />} />
+              <Route path="/" element={<Home />} />
+              <Route path="/academy" element={<Discover />} />
+              <Route path="/discover" element={<Discover />} />
+              <Route path="/paths" element={<Paths />} />
+              <Route path="/paths/:id" element={<PathDetail />} />
+              <Route path="/topics/:id" element={<TopicPreview />} />
+              <Route path="/playground" element={<Playground />} />
               <Route path="/academy/:id" element={<Lesson />} />
-              <Route path="/build" element={<BuildLab />} />
-              <Route path="/operations" element={<Operations />} />
-              <Route path="/visualizer" element={<Visualizer />} />
+              <Route path="/build" element={<Playground forced="build" />} />
+              <Route
+                path="/operations"
+                element={<Playground forced="editor" />}
+              />
+              <Route
+                path="/visualizer"
+                element={<Playground forced="visualizer" />}
+              />
               <Route path="/settings" element={<Settings />} />
               <Route
                 path="*"
@@ -244,258 +252,37 @@ function App() {
     </>
   );
 }
-function Dashboard({ pct }: { pct: number }) {
-  const p = useProgress();
-  const next =
-    lessons.find(
-      (l) => l.id === p.lastLesson && !p.theoryCompleted.includes(l.id),
-    ) ||
-    lessons.find(
-      (l) => l.moduleId === "03" && !p.theoryCompleted.includes(l.id),
-    ) ||
-    lessons.find((l) => !p.theoryCompleted.includes(l.id)) ||
-    lessons[2];
+function Playground({ forced }: { forced?: string }) {
+  const [search] = useSearchParams();
+  const tool = forced || search.get("tool") || "editor";
   return (
     <>
-      <Heading
-        eyebrow="DEIN KUBERNETES-WORKSPACE"
-        title="Verstehen. Bauen. Meistern."
-        description="Dein Weg von den Linux-Grundlagen zum eigenen Kubernetes-Cluster."
-        action={
-          <Badge color="green">
-            <span className="live-dot" />
-            Alles läuft lokal
-          </Badge>
-        }
-      />
-      <div className="dashboard-grid">
-        <section className="continue-card">
-          <div className="continue-content">
-            <div className="eyebrow light">
-              <span className="tiny-square" />
-              DEIN NÄCHSTER SCHRITT
-            </div>
-            <Badge color="glass">{next.category}</Badge>
-            <h2>{next.title}</h2>
-            <p>{next.description}</p>
-            <div className="lesson-meta">
-              <span>
-                <Clock3 size={15} />
-                {next.duration} Minuten
-              </span>
-              <span>
-                <Activity size={15} />
-                Interaktives Lernmodul
-              </span>
-            </div>
-            <Link className="button white" to={`/academy/${next.id}`}>
-              <Play size={16} />
-              {p.theoryCompleted.length ? "Weiterlernen" : "Lernen starten"}
-            </Link>
-          </div>
-          <div
-            className="cluster-hero"
-            aria-label="Architektur: Control Plane verbindet zwei Worker Nodes"
-          >
-            <div className="hero-orbit" />
-            <div className="hero-plane">
-              <Box size={28} />
-              <div>
-                <small>CONTROL PLANE</small>
-                <strong>Dein Cluster beginnt hier.</strong>
-              </div>
-              <span className="hero-node-dot" />
-            </div>
-            <div className="hero-branches">
-              <span />
-              <span />
-            </div>
-            <div className="hero-workers">
-              <div>
-                <Layers3 size={23} />
-                <span>worker-01</span>
-                <small>kubelet · containerd</small>
-              </div>
-              <div>
-                <Layers3 size={23} />
-                <span>worker-02</span>
-                <small>kubelet · containerd</small>
-              </div>
-            </div>
-            <div className="hero-caption">
-              <span className="hero-node-dot" />
-              Ein System. Viele Möglichkeiten.
-            </div>
-          </div>
-        </section>
-        <section className="progress-card panel">
-          <div className="section-title">
-            <h3>Dein Fortschritt</h3>
-            <GraduationCap size={19} />
-          </div>
-          <div
-            className="progress-ring"
-            style={{ "--progress": `${pct}%` } as React.CSSProperties}
-          >
-            <div>
-              <strong>
-                {pct}
-                <small>%</small>
-              </strong>
-              <span>Grundlagen</span>
-            </div>
-          </div>
-          <p>
-            <strong>
-              {p.theoryCompleted.length} von {lessons.length}
-            </strong>{" "}
-            Grundlagenabschlüsse
-          </p>
-          <div className="progress-stats">
-            <span>Praxis abgeschlossen</span>
-            <strong>
-              {
-                lessons.filter((l) => practiceMastered(l, p.practiceCompleted))
-                  .length
-              }{" "}
-              / {lessons.filter((l) => basicPracticeTasks(l).length > 0).length}
-            </strong>
-          </div>
-          <div className="progress-stats">
-            <span>Deep Dive gemeistert</span>
-            <strong>
-              {lessons.filter((l) => deepDiveMastered(l, p)).length} /{" "}
-              {lessons.filter((l) => deepDiveTasks(l).length > 0).length}
-            </strong>
-          </div>
-          <div className="progress-stats">
-            <span>
-              <CheckCircle2 size={17} />
-              Abgeschlossene Labs
-            </span>
-            <strong>{p.checkpoints.length === 7 ? 1 : 0}</strong>
-          </div>
-          <div className="progress-stats">
-            <span>
-              <FlaskConical size={17} />
-              Gelöste Challenges
-            </span>
-            <strong>{p.completedChallenges.length}</strong>
-          </div>
-        </section>
-      </div>
-      <div className="section-heading">
-        <div>
-          <h2>Dein Lernraum</h2>
-          <p>Vom ersten Aha-Moment bis zum funktionierenden Cluster.</p>
-        </div>
-        <span className="subtle">Lernen durch Ausprobieren</span>
-      </div>
-      <div className="feature-grid">
+      <nav className="playground-nav" aria-label="Playground-Werkzeuge">
         {[
-          {
-            to: "/academy",
-            icon: BookOpen,
-            color: "blue",
-            tag: "VERSTEHEN",
-            title: "Academy",
-            description:
-              "Die Konzepte hinter Kubernetes. Verständlich, interaktiv und Schritt für Schritt.",
-            meta: `${lessons.length} Lektionen verfügbar`,
-          },
-          {
-            to: "/build",
-            icon: Layers3,
-            color: "purple",
-            tag: "AUFBAUEN",
-            title: "Build Lab",
-            description:
-              "Baue deinen eigenen Cluster. Von der Linux-VM bis zum ersten Deployment.",
-            meta: "7 geführte Schritte",
-          },
-          {
-            to: "/operations",
-            icon: TerminalSquare,
-            color: "orange",
-            tag: "ANWENDEN",
-            title: "Operations Lab",
-            description:
-              "Schreibe YAML, repariere Deployments und trainiere dein Troubleshooting.",
-            meta: "Browser-Simulation",
-          },
-          {
-            to: "/visualizer",
-            icon: Network,
-            color: "teal",
-            tag: "ENTDECKEN",
-            title: "Visualizer",
-            description:
-              "Mach Zusammenhänge sichtbar und erkunde die Architektur deines Clusters.",
-            meta: "Interaktive Clusteransicht",
-          },
-        ].map((f) => (
-          <Link className="feature-card" to={f.to} key={f.to}>
-            <div className="feature-top">
-              <span className={`feature-icon ${f.color}`}>
-                <f.icon size={23} />
-              </span>
-              <ArrowUpRight size={18} />
-            </div>
-            <div className="eyebrow">{f.tag}</div>
-            <h3>{f.title}</h3>
-            <p>{f.description}</p>
-            <div className="feature-meta">
-              {f.meta}
-              <ChevronRight size={16} />
-            </div>
+          ["editor", "Editor & Terminal"],
+          ["visualizer", "Visualizer"],
+          ["build", "Build-Leitfaden"],
+        ].map(([id, label]) => (
+          <Link
+            key={id}
+            className={tool === id ? "selected" : ""}
+            aria-current={tool === id ? "page" : undefined}
+            to={"/playground?tool=" + id}
+          >
+            {label}
           </Link>
         ))}
-      </div>
-      <div className="bottom-grid">
-        <section className="panel learning-path">
-          <div className="section-heading">
-            <div>
-              <h2>Ein klarer Weg. Dein Tempo.</h2>
-              <p>Dein Lernpfad zum Kubernetes Engineer</p>
-            </div>
-            <Link className="text-link" to="/academy">
-              Alle Phasen
-              <ChevronRight size={16} />
-            </Link>
-          </div>
-          <div className="path-row">
-            {phases.slice(0, 4).map(([name, , num], i) => (
-              <div className={`path-item ${i === 0 ? "active" : ""}`} key={num}>
-                <span className="path-step">{num}</span>
-                <strong>{name}</strong>
-                <span>
-                  {lessons.some((l) => l.moduleId === num)
-                    ? `${lessons.filter((l) => l.moduleId === num).length} Lektionen verfügbar`
-                    : "Geplant"}
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="path-foot">
-            <Sparkles size={15} />
-            16 Themenbereiche · Von den Grundlagen bis zu High Availability
-          </div>
-        </section>
-        <section className="local-card">
-          <span className="feature-icon blue">
-            <ShieldCheck size={22} />
-          </span>
-          <h3>Dein Rechner. Dein Lernstand.</h3>
-          <p>
-            Kein Account, keine Infrastrukturkosten. Dein Fortschritt bleibt in
-            deinem Browser.
-          </p>
-          <Link className="text-link" to="/settings">
-            Lernstand verwalten
-            <ChevronRight size={16} />
-          </Link>
-        </section>
-      </div>
+        <Link to="/discover?category=Architektur+%26+Interna">
+          Architektur-Simulationen
+        </Link>
+      </nav>
+      {tool === "visualizer" ? (
+        <Visualizer />
+      ) : tool === "build" ? (
+        <BuildLab />
+      ) : (
+        <Operations />
+      )}
     </>
   );
 }
@@ -867,7 +654,8 @@ function Settings() {
                   : "Lernstand wird geladen …"}
           </p>
           <p>
-            {p.theoryCompleted.length} Grundlagenabschlüsse ·{" "}
+            {p.readCompleted.length} als gelesen markiert ·{" "}
+            {p.theoryCompleted.length} optionale Wissenschecks ·{" "}
             {p.practiceCompleted.length} Praxisaufgaben · {p.checkpoints.length}{" "}
             Lab-Schritte · {p.completedChallenges.length} Challenges
             abgeschlossen

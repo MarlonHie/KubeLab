@@ -105,7 +105,10 @@ describe("Progress import", () => {
   };
   it("accepts versioned data and removes duplicate IDs", () => {
     expect(parseProgress({ ...valid, completed: ["linux", "linux"] })).toEqual({
-      version: 4,
+      version: 5,
+      readCompleted: ["linux"],
+      lastPath: null,
+      recentLesson: "linux",
       independentCompleted: [],
       theoryCompleted: ["linux"],
       practiceCompleted: [],

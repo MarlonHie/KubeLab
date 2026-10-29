@@ -1,10 +1,15 @@
+import {
+  topicById,
+  learningPaths,
+  pathTopics,
+} from "../../../../packages/lesson-engine/src/library";
+import { TopicLinks } from "./Learning";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { Check, GraduationCap } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+
 import {
   lessons,
   curriculum,
-  practiceTasks,
   basicPracticeTasks,
   deepDiveTasks,
   deepDiveMastered,
@@ -12,7 +17,7 @@ import {
   type Lesson,
 } from "../../../../packages/lesson-engine/src";
 import { LessonBlocks } from "../components/LessonBlocks";
-import { Heading, Badge } from "../components/Page";
+import { Heading } from "../components/Page";
 import { useProgress } from "../stores/progress";
 // The key belongs to this public boundary, so *any* caller changing the lesson resets quizzes, tasks and models.
 export function LessonPage({ lesson }: { lesson: Lesson }) {
@@ -20,11 +25,15 @@ export function LessonPage({ lesson }: { lesson: Lesson }) {
 }
 function LessonSession({ lesson }: { lesson: Lesson }) {
   const p = useProgress();
+  const [search] = useSearchParams();
+  const topic = topicById(lesson.id)!;
+  const activePath = learningPaths.find(
+    (path) =>
+      path.id === search.get("path") &&
+      pathTopics(path).some((t) => t.id === topic.id),
+  );
+  const read = p.readCompleted.includes(lesson.id);
   const [evidence, setEvidence] = useState<Record<string, string[]>>({});
-  const moduleLessons = lessons.filter((l) => l.moduleId === lesson.moduleId);
-  const index = moduleLessons.indexOf(lesson);
-  const next = moduleLessons[index + 1];
-  const module = curriculum.find((m) => m.id === lesson.moduleId)!;
   const theory = p.theoryCompleted.includes(lesson.id);
   const tasks = basicPracticeTasks(lesson);
   const advanced = deepDiveTasks(lesson);
@@ -34,48 +43,63 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
   useEffect(() => {
     const progress = useProgress.getState();
     // A passive visit must not overwrite a saved record that failed migration.
-    if (!progress.error) progress.update({ lastLesson: lesson.id });
-  }, [lesson.id]);
+    if (!progress.error)
+      progress.update({
+        lastLesson: lesson.id,
+        recentLesson: lesson.id,
+        ...(activePath ? { lastPath: activePath.id } : {}),
+      });
+  }, [lesson.id, activePath?.id]);
+  useEffect(() => {
+    const section = search.get("section");
+    if (!section || !topic.deepDives.some((d) => d.section === section)) return;
+    const target = document.getElementById(`section-${section}`);
+    if (target instanceof HTMLDetailsElement) target.open = true;
+    const frame = requestAnimationFrame(() => {
+      target?.scrollIntoView({ block: "start" });
+      target?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [lesson.id, search.toString()]);
   return (
     <>
       <Link
         className="text-link back-link"
-        to={`/academy?module=${lesson.moduleId}`}
+        to={activePath ? `/paths/${activePath.id}` : "/discover"}
       >
-        Academy / Modul {lesson.moduleId} · {module.title}
+        ← {activePath ? activePath.title : "Themen entdecken"}
       </Link>
       <Heading
-        eyebrow={`MODUL ${lesson.moduleId} · LEKTION ${String(index + 1).padStart(2, "0")} VON ${String(moduleLessons.length).padStart(2, "0")}`}
+        eyebrow={topic.category}
         title={lesson.title}
-        description={`${lesson.duration} Minuten · ${lesson.level}`}
-        action={
-          <div className="lesson-progress-badges">
-            <Badge color={theory ? "green" : "blue"}>
-              <span data-testid="theory-status">
-                {theory ? "Grundlagen abgeschlossen" : "Grundlagen offen"}
-              </span>
-            </Badge>
-            <Badge color={mastered ? "green" : "gray"}>
-              <span data-testid="practice-status">
-                {mastered
-                  ? "Praxis abgeschlossen"
-                  : tasks.length
-                    ? "Praxis offen"
-                    : "Praxis nicht automatisch geprüft"}
-              </span>
-            </Badge>
-            <Badge color={deepDiveMastered(lesson, p) ? "green" : "gray"}>
-              <span data-testid="deep-dive-status">
-                {deepDiveMastered(lesson, p)
-                  ? "Deep Dive gemeistert"
-                  : advanced.length
-                    ? "Deep Dive offen · optional"
-                    : "Deep Dive noch nicht verfügbar"}
-              </span>
-            </Badge>
-          </div>
-        }
+        description={lesson.description}
       />
+      <div className="reading-status">
+        <button
+          className="button secondary"
+          aria-pressed={read}
+          disabled={!!p.error}
+          onClick={() =>
+            p.update({
+              readCompleted: read
+                ? p.readCompleted.filter((id) => id !== lesson.id)
+                : [...new Set([...p.readCompleted, lesson.id])],
+            })
+          }
+        >
+          {read ? "Gelesen ✓ · Markierung aufheben" : "Als gelesen markieren"}
+        </button>
+        <span>
+          Dein Lesestatus gilt in allen Lernpfaden. Aufgaben und Vertiefungen
+          sind freiwillig.
+        </span>
+      </div>
+      {lesson.duration && (
+        <p className="subtle">
+          Orientierung: etwa {lesson.duration} Minuten, je nach gewählten
+          Abschnitten. Kein Zeitziel.
+        </p>
+      )}
       <p className="subtle" role="status" data-testid="progress-save-status">
         {p.saveStatus === "saved"
           ? "Lernstand lokal gespeichert"
@@ -85,68 +109,97 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
               ? "Lernstand nicht gespeichert. Exportiere eine Sicherung in den Einstellungen."
               : "Lernstand wird geladen …"}
       </p>
-      {tasks.length > 0 && (
-        <p className="subtle" data-testid="practice-count">
-          {
-            tasks.filter((t) =>
-              p.practiceCompleted.includes(`${lesson.id}/${t.id}`),
-            ).length
-          }{" "}
-          von {tasks.length} Praxisaufgaben geprüft
-          {lesson.sections.some((s) => s.collapsible)
-            ? " · optionale Vertiefungen zählen separat"
-            : ""}
-          .
+      <details className="optional-records">
+        <summary>Optionale Übungen und bisherige Nachweise</summary>
+        <p>
+          Diese Nachweise bleiben erhalten. Du kannst die Lektion unabhängig
+          davon als gelesen markieren.
         </p>
-      )}
-      {advanced.length > 0 && (
-        <div className="panel learning-mode">
-          <strong>Lernmodus</strong>
-          <div className="deep-actions">
-            {(["guided", "challenge"] as const).map((m) => (
+        <div className="lesson-progress-badges">
+          <span data-testid="theory-status">
+            {theory ? "Grundlagen abgeschlossen" : "Grundlagen offen"}
+          </span>
+          <span data-testid="practice-status">
+            {mastered
+              ? "Praxis abgeschlossen"
+              : tasks.length
+                ? "Praxis offen"
+                : "Praxis nicht automatisch geprüft"}
+          </span>
+          <span data-testid="deep-dive-status">
+            {deepDiveMastered(lesson, p)
+              ? "Deep Dive gemeistert"
+              : advanced.length
+                ? "Deep Dive offen · optional"
+                : "Deep Dive noch nicht verfügbar"}
+          </span>
+        </div>
+        {tasks.length > 0 && (
+          <p className="subtle" data-testid="practice-count">
+            {
+              tasks.filter((t) =>
+                p.practiceCompleted.includes(`${lesson.id}/${t.id}`),
+              ).length
+            }{" "}
+            von {tasks.length} Praxisaufgaben geprüft
+            {lesson.sections.some((s) => s.collapsible)
+              ? " · optionale Vertiefungen zählen separat"
+              : ""}
+            .
+          </p>
+        )}
+        {advanced.length > 0 && (
+          <div className="panel learning-mode">
+            <strong>Lernmodus</strong>
+            <div className="deep-actions">
+              {(["guided", "challenge"] as const).map((m) => (
+                <button
+                  key={m}
+                  className="button secondary"
+                  aria-pressed={mode === m}
+                  onClick={() => {
+                    setMode(m);
+                    setEvidence({});
+                    setAttempt((a) => a + 1);
+                  }}
+                >
+                  {m === "guided"
+                    ? "Geführt lernen"
+                    : "Eigenständige Challenge"}
+                </button>
+              ))}
               <button
-                key={m}
                 className="button secondary"
-                aria-pressed={mode === m}
                 onClick={() => {
-                  setMode(m);
                   setEvidence({});
                   setAttempt((a) => a + 1);
                 }}
               >
-                {m === "guided" ? "Geführt lernen" : "Eigenständige Challenge"}
+                Neuen Versuch starten
               </button>
-            ))}
-            <button
-              className="button secondary"
-              onClick={() => {
-                setEvidence({});
-                setAttempt((a) => a + 1);
-              }}
-            >
-              Neuen Versuch starten
-            </button>
+            </div>
+            <p>
+              {mode === "guided"
+                ? "Hinweise und Prüfpfade unterstützen das Lernen. Ergebnisse werden als Übung gespeichert."
+                : "Kein nächster Schritt und keine laufende Prüfliste. Diagnosefälle haben keine vorgeschriebene Reihenfolge. Aufgedeckte Hilfe macht diesen Versuch zur Übung."}{" "}
+              Ein Moduswechsel startet einen neuen Versuch; gespeicherte
+              Abschlüsse bleiben erhalten.
+            </p>
+            <p data-testid="deep-dive-count">
+              {
+                advanced.filter((t) =>
+                  p.independentCompleted.includes(`${lesson.id}/${t.id}`),
+                ).length
+              }{" "}
+              von {advanced.length} eigenständigen Nachweisen. Der historische
+              Vertiefungsnachweis zählt Grundlagen und Praxis mit; dein
+              Lesestatus ist davon unabhängig.
+            </p>
           </div>
-          <p>
-            {mode === "guided"
-              ? "Hinweise und Prüfpfade unterstützen das Lernen. Ergebnisse werden als Übung gespeichert."
-              : "Kein nächster Schritt und keine laufende Prüfliste. Diagnosefälle haben keine vorgeschriebene Reihenfolge. Aufgedeckte Hilfe macht diesen Versuch zur Übung."}{" "}
-            Ein Moduswechsel startet einen neuen Versuch; gespeicherte
-            Abschlüsse bleiben erhalten.
-          </p>
-          <p data-testid="deep-dive-count">
-            {
-              advanced.filter((t) =>
-                p.independentCompleted.includes(`${lesson.id}/${t.id}`),
-              ).length
-            }{" "}
-            von {advanced.length} eigenständigen Nachweisen. Deep Dive setzt
-            außerdem Grundlagen und grundlegende Praxis voraus.
-          </p>
-        </div>
-      )}
-      <div className="lesson-layout">
-        <article className="prose panel architecture-lesson">
+        )}
+      </details>
+      <div className="lesson-layout reading-layout">
+        <article className="prose architecture-lesson reading-article">
           {lesson.goals.length > 0 && (
             <section className="learning-goals">
               <h2>Nach dieser Lektion kannst du …</h2>
@@ -184,6 +237,7 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
               <Tag
                 className={s.collapsible ? "internals-section" : undefined}
                 id={`section-${s.id}`}
+                tabIndex={-1}
                 key={s.id}
               >
                 {s.collapsible ? (
@@ -207,26 +261,12 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
               </Tag>
             );
           })}
-          <div className="lesson-navigation">
-            {index > 0 && (
-              <Link
-                className="button secondary"
-                to={`/academy/${moduleLessons[index - 1].id}`}
-              >
-                Vorherige Lektion
-              </Link>
-            )}
-            <Link
-              className="button primary"
-              to={
-                next
-                  ? `/academy/${next.id}`
-                  : `/academy?module=${lesson.moduleId}`
-              }
-            >
-              {next ? "Nächste Lektion" : "Zur Modulübersicht"}
-            </Link>
-          </div>
+          {topic.kubeshop && (
+            <p className="notice">
+              <strong>KubeShop-Bezug: </strong>
+              {topic.kubeshop}
+            </p>
+          )}
           <section className="lesson-sources">
             <h3>Technische Quellen</h3>
             <p>
@@ -246,69 +286,7 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
             </ul>
           </section>
         </article>
-        <aside className="lesson-aside panel">
-          <GraduationCap size={25} />
-          <h3>Modul {lesson.moduleId} · Dein Lernpfad</h3>
-          <p className="subtle">
-            Grundlagen:{" "}
-            {
-              moduleLessons.filter((l) => p.theoryCompleted.includes(l.id))
-                .length
-            }{" "}
-            / {moduleLessons.length} · Praxis:{" "}
-            {
-              moduleLessons.filter((l) =>
-                practiceMastered(l, p.practiceCompleted),
-              ).length
-            }{" "}
-            /{" "}
-            {
-              moduleLessons.filter((l) => basicPracticeTasks(l).length > 0)
-                .length
-            }{" "}
-            prüfbare Lektionen · Deep Dive:{" "}
-            {moduleLessons.filter((l) => deepDiveMastered(l, p)).length} /{" "}
-            {moduleLessons.filter((l) => deepDiveTasks(l).length > 0).length}
-          </p>
-          {moduleLessons.map((l, i) => (
-            <Link
-              className={l.id === lesson.id ? "current" : ""}
-              to={`/academy/${l.id}`}
-              key={l.id}
-              aria-current={l.id === lesson.id ? "page" : undefined}
-            >
-              <span>
-                {p.theoryCompleted.includes(l.id) ? (
-                  <Check size={16} />
-                ) : (
-                  String(i + 1).padStart(2, "0")
-                )}
-              </span>
-              <div>
-                {l.title}
-                <small>
-                  {p.theoryCompleted.includes(l.id)
-                    ? "Grundlagen ✓"
-                    : "Grundlagen offen"}{" "}
-                  ·{" "}
-                  {practiceMastered(l, p.practiceCompleted)
-                    ? "Praxis ✓"
-                    : basicPracticeTasks(l).length
-                      ? "Praxis offen"
-                      : "Praxis ungeprüft"}
-                  {" · "}
-                  {deepDiveMastered(l, p)
-                    ? "Deep Dive ✓"
-                    : deepDiveTasks(l).length
-                      ? "Deep Dive offen"
-                      : "Deep Dive geplant"}
-                </small>
-              </div>
-            </Link>
-          ))}
-          <Link to="/operations">YAML-Spielplatz öffnen</Link>
-          <Link to="/visualizer">Gespeicherten Cluster erkunden</Link>
-        </aside>
+        <TopicLinks topic={topic} path={activePath?.id} />
       </div>
     </>
   );

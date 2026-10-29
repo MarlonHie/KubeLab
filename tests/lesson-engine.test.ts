@@ -35,8 +35,8 @@ function strings(value: unknown): string[] {
 }
 const example = () => structuredClone(architectureLessons[0]);
 describe("declarative lesson schema and lossless migration", () => {
-  it("validates all 22 lessons including preserved introductions and validates every document", () => {
-    expect(lessons).toHaveLength(22);
+  it("validates all 23 lessons including preserved introductions and validates every document", () => {
+    expect(lessons).toHaveLength(23);
     expect(parseCatalog(lessons)).toEqual(lessons);
   });
   it.each(original.map((l) => [l.id, l] as const))(
@@ -103,7 +103,7 @@ describe("declarative lesson schema and lossless migration", () => {
       }),
     (l: any) =>
       (l.sections[2].blocks[1].verification.items[0].answer = "unknown"),
-    (l: any) => l.sections.pop(),
+    (l: any) => l.sections.push(structuredClone(l.sections.at(-1))),
   ])("rejects malformed documents before rendering", (mutate) => {
     const l = example();
     mutate(l);
@@ -199,7 +199,10 @@ describe("version 3 progress migration", () => {
   it("preserves v2 theory and unrelated state without inventing practice", () => {
     const p = parseProgress(v2);
     expect(p).toEqual({
-      version: 4,
+      version: 5,
+      readCompleted: ["linux", "etcd", "control-plane"],
+      lastPath: null,
+      recentLesson: "etcd",
       independentCompleted: [],
       theoryCompleted: v2.completed,
       practiceCompleted: [],
@@ -232,7 +235,7 @@ describe("version 3 progress migration", () => {
     { practiceCompleted: ["unknown/practice"] },
     { theoryCompleted: ["unknown"] },
     { practiceCompleted: undefined },
-    { version: 5 },
+    { version: 6 },
   ])("rejects corrupt or uncheckable completion", (patch) =>
     expect(() => parseProgress({ ...parseProgress(v2), ...patch })).toThrow(),
   );

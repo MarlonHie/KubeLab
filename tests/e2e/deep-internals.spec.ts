@@ -1,3 +1,4 @@
+import { openOptionalLearning } from "./optional-learning";
 import { test, expect } from "@playwright/test";
 import {
   architectureLessons,
@@ -24,9 +25,11 @@ for (const [lesson, model, id, labels] of [
     page,
   }) => {
     await page.goto(`/#/academy/${lesson}`);
+    await openOptionalLearning(page);
     const details = page.locator("#section-internals");
     await expect(details).not.toHaveAttribute("open");
     await page.getByRole("button", { name: "Internals", exact: true }).click();
+    await openOptionalLearning(page);
     await expect(details).toHaveAttribute("open", "");
     const simulator = page.getByTestId(model),
       task = page.getByTestId("practice-internals-practice");
@@ -63,7 +66,9 @@ for (const [lesson, model, id, labels] of [
       "Lernstand lokal gespeichert",
     );
     await page.reload();
+    await openOptionalLearning(page);
     await page.getByRole("button", { name: "Internals", exact: true }).click();
+    await openOptionalLearning(page);
     await expect(
       task.getByText("Praxisnachweis im Lernstand erfasst.", { exact: false }),
     ).toBeVisible();
@@ -76,7 +81,9 @@ test("guided transfer preserves answers on collapse and leaves independent maste
 }) => {
   const lesson = architectureLessons.find((l) => l.id === "cluster-basics")!;
   await page.goto("/#/academy/cluster-basics");
+  await openOptionalLearning(page);
   await page.getByRole("button", { name: "Internals", exact: true }).click();
+  await openOptionalLearning(page);
   for (const task of practiceTasks(lesson)) {
     const block = page.getByTestId(`practice-${task.id}`),
       v = task.verification;
@@ -88,6 +95,7 @@ test("guided transfer preserves answers on collapse and leaves independent maste
       await page
         .getByRole("button", { name: "Internals", exact: true })
         .click();
+      await openOptionalLearning(page);
       await expect(block.locator("select").first()).toHaveValue(
         v.items[0].answer,
       );
@@ -110,7 +118,9 @@ test("every internals section opens on mobile without page overflow or runtime e
   page.on("pageerror", (e) => errors.push(e.message));
   for (const lesson of architectureLessons) {
     await page.goto(`/#/academy/${lesson.id}`);
+    await openOptionalLearning(page);
     await page.getByRole("button", { name: "Internals", exact: true }).click();
+    await openOptionalLearning(page);
     await expect(page.getByTestId("practice-internals-transfer")).toBeVisible();
     expect(
       await page.evaluate(

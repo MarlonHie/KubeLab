@@ -122,8 +122,8 @@ function KnowledgeCheck({
     <div className="quiz" data-testid="knowledge-check">
       <h2>{block.title}</h2>
       <p>
-        Beantworte alle {block.questions.length} Fragen richtig, um die
-        Grundlagen abzuschließen. Praxisaufgaben werden getrennt geprüft.
+        Optionaler Wissenscheck mit {block.questions.length} Fragen. Dein
+        Lesestatus ist unabhängig vom Ergebnis.
       </p>
       {block.questions.map((q, i) => (
         <fieldset key={q.id} className="architecture-question">
@@ -179,8 +179,8 @@ function KnowledgeCheck({
       {checked && (
         <p role="status" className={`notice ${passed ? "success" : "warning"}`}>
           {passed
-            ? "Alle Antworten sind richtig. Grundlagen abgeschlossen und Lernstand aktualisiert."
-            : "Grundlagen noch nicht abgeschlossen. Lies die Begründungen und versuche es erneut."}
+            ? "Alle Antworten sind richtig. Optionalen Wissenscheck bestanden und Lernstand aktualisiert."
+            : "Lies die Begründungen. Du kannst es erneut versuchen oder einfach weiterlesen."}
         </p>
       )}
     </div>
@@ -523,17 +523,23 @@ export function LessonBlocks({
             );
           case "task":
             return (
-              <PracticeTask
-                key={key}
-                block={block}
-                lessonId={lessonId}
-                evidence={evidence}
-                mode={mode}
-              />
+              <details className="optional-exercise" key={key}>
+                <summary>{block.title} · freiwillig</summary>
+                <PracticeTask
+                  key={key}
+                  block={block}
+                  lessonId={lessonId}
+                  evidence={evidence}
+                  mode={mode}
+                />
+              </details>
             );
           case "quiz":
             return (
-              <KnowledgeCheck key={key} block={block} lessonId={lessonId} />
+              <details className="optional-exercise" key={key}>
+                <summary>Wissenscheck · freiwillig</summary>
+                <KnowledgeCheck block={block} lessonId={lessonId} />
+              </details>
             );
           default: {
             const exhaustive: never = block;

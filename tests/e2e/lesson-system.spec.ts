@@ -1,3 +1,4 @@
+import { openOptionalLearning } from "./optional-learning";
 import { test, expect, type Page } from "@playwright/test";
 import {
   lessons,
@@ -36,17 +37,20 @@ async function quorumTask(page: Page) {
   await page.getByRole("button", { name: /etcd-3/ }).click();
   await page.getByRole("button", { name: "Änderung schreiben" }).click();
 }
-test("all 22 lessons use the same page and retain their content", async ({
+test("all 23 lessons use the same page and retain their content", async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   for (const l of lessons) {
     await page.goto("/#/academy/" + l.id);
+    await openOptionalLearning(page);
     await expect(
       page.getByRole("heading", { name: l.title, exact: true }),
     ).toBeVisible();
-    await expect(page.getByTestId("knowledge-check")).toBeVisible();
+    if (quizFor(l))
+      await expect(page.getByTestId("knowledge-check")).toBeVisible();
+    else await expect(page.getByTestId("knowledge-check")).toHaveCount(0);
     await expect(page.getByTestId("theory-status")).toHaveText(
       "Grundlagen offen",
     );
@@ -57,12 +61,13 @@ test("client navigation and back reset quiz answers and feedback, but retain the
   page,
 }) => {
   await page.goto("/#/academy/cluster-basics");
+  await openOptionalLearning(page);
   await answerQuiz(page, "cluster-basics");
   await expect(page.getByTestId("theory-status")).toHaveText(
     "Grundlagen abgeschlossen",
   );
   await page
-    .getByRole("link", { name: "Nächste Lektion", exact: true })
+    .getByRole("link", { name: "Control Plane und Worker Nodes", exact: true })
     .click();
   await expect(page).toHaveURL(/control-plane$/);
   await expect(
@@ -75,6 +80,7 @@ test("client navigation and back reset quiz answers and feedback, but retain the
     page.getByTestId("knowledge-check").getByRole("status"),
   ).toHaveCount(0);
   await page.goBack();
+  await openOptionalLearning(page);
   await expect(
     page.getByTestId("knowledge-check").locator("input:checked"),
   ).toHaveCount(0);
@@ -87,6 +93,7 @@ test("practice requires actual evidence, resets observations, and persists separ
   page,
 }) => {
   await page.goto("/#/academy/etcd");
+  await openOptionalLearning(page);
   await page.getByRole("button", { name: "Praxisaufgabe prüfen" }).click();
   await expect(page.getByTestId("practice-status")).toHaveText("Praxis offen");
   await quorumTask(page);
@@ -103,12 +110,14 @@ test("practice requires actual evidence, resets observations, and persists separ
     "Lernstand lokal gespeichert",
   );
   await page.reload();
+  await openOptionalLearning(page);
   await expectBasicPractice(page);
   await expect(page.getByTestId("theory-status")).toHaveText(
     "Grundlagen offen",
   );
   await answerQuiz(page, "etcd");
   await page.reload();
+  await openOptionalLearning(page);
   await expect(page.getByTestId("theory-status")).toHaveText(
     "Grundlagen abgeschlossen",
   );
@@ -118,6 +127,7 @@ test("matching checks reject incomplete work and opening a solution never grants
   page,
 }) => {
   await page.goto("/#/academy/cluster-basics");
+  await openOptionalLearning(page);
   const task = page.getByTestId("practice-practice");
   await task.getByText("Lösung bewusst aufdecken", { exact: true }).click();
   await task.getByRole("button", { name: "Praxisaufgabe prüfen" }).click();
@@ -138,6 +148,7 @@ test("version 2 IndexedDB migrates and export/import round trips both completion
   page,
 }) => {
   await page.goto("/#/academy");
+  await openOptionalLearning(page);
   await page.evaluate(async () => {
     await new Promise<void>((resolve, reject) => {
       const request = indexedDB.open("keyval-store");
@@ -166,7 +177,9 @@ test("version 2 IndexedDB migrates and export/import round trips both completion
     });
   });
   await page.reload();
+  await openOptionalLearning(page);
   await page.goto("/#/academy/etcd");
+  await openOptionalLearning(page);
   await expect(page.getByTestId("theory-status")).toHaveText(
     "Grundlagen abgeschlossen",
   );
@@ -175,6 +188,7 @@ test("version 2 IndexedDB migrates and export/import round trips both completion
   await quorumTask(page);
   await page.getByRole("button", { name: "Praxisaufgabe prüfen" }).click();
   await page.goto("/#/settings");
+  await openOptionalLearning(page);
   await expect(page.getByTestId("progress-save-status")).toHaveText(
     "Lernstand lokal gespeichert",
   );
@@ -185,7 +199,7 @@ test("version 2 IndexedDB migrates and export/import round trips both completion
   await page.getByRole("button", { name: "Ja, zurücksetzen" }).click();
   await expect(
     page.getByText(
-      "0 Grundlagenabschlüsse · 0 Praxisaufgaben · 0 Lab-Schritte",
+      "0 als gelesen markiert · 0 optionale Wissenschecks · 0 Praxisaufgaben · 0 Lab-Schritte",
       {
         exact: false,
       },
@@ -194,14 +208,16 @@ test("version 2 IndexedDB migrates and export/import round trips both completion
   await page.getByLabel("Lernstand importieren").setInputFiles(file!);
   await expect(
     page.getByText(
-      "2 Grundlagenabschlüsse · 1 Praxisaufgaben · 1 Lab-Schritte",
+      "2 als gelesen markiert · 2 optionale Wissenschecks · 1 Praxisaufgaben · 1 Lab-Schritte",
       {
         exact: false,
       },
     ),
   ).toBeVisible();
   await page.goto("/#/academy/etcd");
+  await openOptionalLearning(page);
   await page.reload();
+  await openOptionalLearning(page);
   await expect(page.getByTestId("theory-status")).toHaveText(
     "Grundlagen abgeschlossen",
   );
@@ -211,6 +227,7 @@ test("scheduler and runtime observations follow explicit task states", async ({
   page,
 }) => {
   await page.goto("/#/academy/scheduling");
+  await openOptionalLearning(page);
   await page.getByLabel("CPU-Request im Playground").fill("3");
   await page.getByLabel("Harter Node-Wunsch").selectOption("worker-01");
   await page
@@ -228,6 +245,7 @@ test("scheduler and runtime observations follow explicit task states", async ({
   await page.getByRole("button", { name: "Praxisaufgabe prüfen" }).click();
   await expectBasicPractice(page);
   await page.goto("/#/academy/kubelet-runtime");
+  await openOptionalLearning(page);
   for (const label of [
     "Pod-Netzwerk verfügbar",
     "Image verfügbar",
@@ -250,8 +268,10 @@ test("code, YAML, outputs and tables render safely without mobile overflow", asy
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/academy/cluster-basics");
+  await openOptionalLearning(page);
   await expect(page.getByRole("table").first()).toBeVisible();
   await page.goto("/#/academy/apply-to-pod");
+  await openOptionalLearning(page);
   await expect(page.locator("code.language-yaml")).toContainText("replicas: 3");
   await expect(
     page.getByText("Beispielausgabe · nicht live", { exact: false }),
@@ -265,6 +285,7 @@ test("code, YAML, outputs and tables render safely without mobile overflow", asy
     ),
   ).toBe(true);
   await page.goto("/#/academy/cilium");
+  await openOptionalLearning(page);
   await expect(page.locator("code.language-yaml")).toHaveCount(2);
   await expect(page.getByTestId("practice-status")).toHaveText(
     "Praxis nicht automatisch geprüft",
@@ -275,6 +296,7 @@ test("API practice records rejected requests without awarding theory completion"
   page,
 }) => {
   await page.goto("/#/academy/api-lifecycle");
+  await openOptionalLearning(page);
   for (const name of [
     "Gültige Identität",
     "Operation erlaubt",
@@ -300,6 +322,7 @@ test("an unreadable saved progress record survives passive lesson navigation", a
   page,
 }) => {
   await page.goto("/#/settings");
+  await openOptionalLearning(page);
   await page.evaluate(async () => {
     await new Promise<void>((resolve, reject) => {
       const r = indexedDB.open("keyval-store");
@@ -319,12 +342,14 @@ test("an unreadable saved progress record survives passive lesson navigation", a
     });
   });
   await page.reload();
+  await openOptionalLearning(page);
   await expect(
     page.getByText("Lokaler Lernstand konnte nicht geladen werden.", {
       exact: false,
     }),
   ).toBeVisible();
   await page.goto("/#/academy/etcd");
+  await openOptionalLearning(page);
   await expect(page.getByTestId("theory-status")).toHaveText(
     "Grundlagen offen",
   );

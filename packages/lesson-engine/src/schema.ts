@@ -73,9 +73,9 @@ export function parseLesson(value: unknown): Lesson {
       }
     }
   }
-  if (quizCount !== 1)
+  if (quizCount > 1)
     throw new Error(
-      `${lesson.id}: Genau ein Wissenscheck pro Lektion erforderlich`,
+      `${lesson.id}: Höchstens ein Wissenscheck pro Lektion erlaubt`,
     );
   return lesson;
 }

@@ -80,7 +80,7 @@ export interface Lesson {
   description: string;
   category: string;
   level: Level;
-  duration: number;
+  duration?: number;
   goals: string[];
   sections: {
     id: string;

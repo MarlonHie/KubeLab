@@ -1,3 +1,4 @@
+import zalando from "./zalando-postgres.json" with { type: "json" };
 import foundation0 from "./linux-processes.json" with { type: "json" };
 import foundation1 from "./linux-namespaces.json" with { type: "json" };
 import foundation2 from "./linux-cgroups.json" with { type: "json" };
@@ -21,6 +22,7 @@ import lesson10 from "./component-failures.json" with { type: "json" };
 import lesson11 from "./networking.json" with { type: "json" };
 import lesson12 from "./cilium.json" with { type: "json" };
 export const lessonDocuments = [
+  zalando,
   lesson0,
   foundation0,
   foundation1,

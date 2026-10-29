@@ -1,19 +1,23 @@
+import { openOptionalLearning } from "./optional-learning";
 import { test, expect } from "@playwright/test";
 test("learning completion survives reload, export, reset, and import", async ({
   page,
 }) => {
   await page.goto("/#/academy/linux");
+  await openOptionalLearning(page);
   await page.getByLabel("cgroups", { exact: true }).check();
   await page.getByRole("button", { name: "Wissenscheck auswerten" }).click();
   await expect(
     page.getByTestId("knowledge-check").getByRole("status"),
-  ).toContainText("Grundlagen abgeschlossen");
+  ).toContainText("Optionalen Wissenscheck bestanden");
   await expect(page.getByTestId("progress-save-status")).toHaveText(
     "Lernstand lokal gespeichert",
   );
   await page.reload();
+  await openOptionalLearning(page);
   await expect(page.getByTestId("theory-status")).toBeVisible();
   await page.goto("/#/settings");
+  await openOptionalLearning(page);
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Exportieren", exact: true }).click();
   const file = await (await download).path();
@@ -21,7 +25,7 @@ test("learning completion survives reload, export, reset, and import", async ({
   await page.getByRole("button", { name: "Ja, zurücksetzen" }).click();
   await expect(
     page.getByText(
-      "0 Grundlagenabschlüsse · 0 Praxisaufgaben · 0 Lab-Schritte",
+      "0 als gelesen markiert · 0 optionale Wissenschecks · 0 Praxisaufgaben · 0 Lab-Schritte",
     ),
   ).toBeVisible();
   await page.getByLabel("Lernstand importieren").setInputFiles(file!);
@@ -30,7 +34,7 @@ test("learning completion survives reload, export, reset, and import", async ({
   );
   await expect(
     page.getByText(
-      "1 Grundlagenabschlüsse · 0 Praxisaufgaben · 0 Lab-Schritte",
+      "0 als gelesen markiert · 1 optionale Wissenschecks · 0 Praxisaufgaben · 0 Lab-Schritte",
     ),
   ).toBeVisible();
 });
@@ -40,6 +44,7 @@ test("Monaco applies manifests and terminal scales resources", async ({
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/#/operations");
+  await openOptionalLearning(page);
   await expect(page.locator(".monaco-editor")).toBeVisible();
   await page
     .getByRole("button", { name: "Simuliert anwenden", exact: true })
@@ -63,11 +68,14 @@ test("Monaco applies manifests and terminal scales resources", async ({
 });
 test("scheduler and build checkpoints work", async ({ page }) => {
   await page.goto("/#/visualizer");
+  await openOptionalLearning(page);
   await page.getByLabel("CPU-Anforderung").fill("6");
   await expect(page.getByRole("status")).toContainText("Pending");
   await page.goto("/#/build");
+  await openOptionalLearning(page);
   await page.getByRole("checkbox").check();
   await page.reload();
+  await openOptionalLearning(page);
   await expect(page.getByRole("checkbox")).toBeChecked();
   await expect(page.getByText("1/7 geprüft")).toBeVisible();
 });
@@ -76,18 +84,21 @@ test("mobile navigation and dark mode remain usable without overflow", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  await openOptionalLearning(page);
   await expect(
-    page.getByRole("heading", { name: "Verstehen. Bauen. Meistern." }),
+    page.getByRole("heading", {
+      name: "Kubernetes verstehen. In deinem Tempo.",
+    }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Dunkles Design aktivieren" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("button", { name: "Menü öffnen" }).click();
   await page
     .getByRole("navigation", { name: "Hauptnavigation" })
-    .getByRole("link", { name: "Academy" })
+    .getByRole("link", { name: "Entdecken" })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Kubernetes von innen verstehen." }),
+    page.getByRole("heading", { name: "Deine Frage. Dein Thema." }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -109,6 +120,7 @@ test("all routes render with no runtime errors", async ({ page }) => {
     "/settings",
   ]) {
     await page.goto("/#" + route);
+    await openOptionalLearning(page);
     await expect(page.locator("main h1")).toBeVisible();
   }
   expect(errors).toEqual([]);

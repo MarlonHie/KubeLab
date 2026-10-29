@@ -31,7 +31,14 @@ const v3 = {
 describe("three independent progress stages", () => {
   it("migrates v3 credits without inventing independent completion", () => {
     const migrated = parseProgress(v3);
-    expect(migrated).toEqual({ ...v3, version: 4, independentCompleted: [] });
+    expect(migrated).toEqual({
+      ...v3,
+      version: 5,
+      independentCompleted: [],
+      readCompleted: ["etcd"],
+      lastPath: null,
+      recentLesson: "etcd",
+    });
     const lesson = lessons.find((l) => l.id === "etcd")!;
     expect(practiceMastered(lesson, migrated.practiceCompleted)).toBe(true);
     expect(deepDiveMastered(lesson, migrated)).toBe(false);

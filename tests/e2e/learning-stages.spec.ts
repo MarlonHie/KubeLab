@@ -1,3 +1,4 @@
+import { openOptionalLearning } from "./optional-learning";
 import { test, expect, type Page } from "@playwright/test";
 import {
   lessons,
@@ -38,6 +39,7 @@ test("optional internals do not block practice; help disqualifies only the curre
   page,
 }) => {
   await page.goto("/#/academy/linux-cgroups");
+  await openOptionalLearning(page);
   await solveBasics(page, "linux-cgroups");
   await expect(page.getByTestId("theory-status")).toHaveText(
     "Grundlagen abgeschlossen",
@@ -49,12 +51,14 @@ test("optional internals do not block practice; help disqualifies only the curre
     "Deep Dive offen · optional",
   );
   await page.getByRole("button", { name: "Internals", exact: true }).click();
+  await openOptionalLearning(page);
   const task = page.getByTestId("practice-diagnosis");
   await solveDiagnosis(page, "linux-cgroups");
   await expect(page.getByTestId("deep-dive-count")).toContainText("0 von 1");
   await page
     .getByRole("button", { name: "Eigenständige Challenge", exact: true })
     .click();
+  await openOptionalLearning(page);
   await task.getByRole("button", { name: "Hinweis anzeigen" }).click();
   await solveDiagnosis(page, "linux-cgroups");
   await expect(task).toContainText("Dieser Versuch nutzt Hilfe");
@@ -62,6 +66,7 @@ test("optional internals do not block practice; help disqualifies only the curre
   await page
     .getByRole("button", { name: "Neuen Versuch starten", exact: true })
     .click();
+  await openOptionalLearning(page);
   await expect(task.getByLabel("Wahrscheinlichste Ursache")).toHaveValue("");
   await solveDiagnosis(page, "linux-cgroups", true);
   await expect(page.getByTestId("deep-dive-status")).toHaveText(
@@ -71,25 +76,32 @@ test("optional internals do not block practice; help disqualifies only the curre
     "Lernstand lokal gespeichert",
   );
   await page.reload();
+  await openOptionalLearning(page);
   await expect(page.getByTestId("deep-dive-status")).toHaveText(
     "Deep Dive gemeistert",
   );
-  await page.goto("/#/academy?module=01");
-  await expect(
-    page
-      .locator(".curriculum-lesson")
-      .filter({ hasText: "cgroups v2 und Ressourcenengpässe" }),
-  ).toContainText("Deep Dive gemeistert");
+  await page.goto("/#/discover?q=cgroups");
+  await openOptionalLearning(page);
+  await expect(page.getByTestId("topic-linux-cgroups")).toBeVisible();
+  // Detailed optional proof remains on the canonical lesson, not on every topic card.
+  await page.goto("/#/academy/linux-cgroups");
+  await openOptionalLearning(page);
+  await expect(page.getByTestId("deep-dive-status")).toHaveText(
+    "Deep Dive gemeistert",
+  );
 });
 test("challenge mode removes the guided path; explicit solution reveal never grants an independent proof", async ({
   page,
 }) => {
   await page.goto("/#/academy/etcd");
+  await openOptionalLearning(page);
   await page.getByRole("button", { name: "Internals", exact: true }).click();
+  await openOptionalLearning(page);
   await expect(page.getByTestId("challenge-guide")).toBeVisible();
   await page
     .getByRole("button", { name: "Eigenständige Challenge", exact: true })
     .click();
+  await openOptionalLearning(page);
   await expect(page.getByTestId("challenge-guide")).toHaveCount(0);
   await expect(page.getByTestId("practice-internals-practice")).toHaveCount(0);
   const task = page.getByTestId("practice-diagnosis");
@@ -101,6 +113,7 @@ test("challenge mode removes the guided path; explicit solution reveal never gra
   await page
     .getByRole("button", { name: "Geführt lernen", exact: true })
     .click();
+  await openOptionalLearning(page);
   await expect(page.getByTestId("challenge-guide")).toContainText(
     "Prüfpfad 0/",
   );
@@ -118,10 +131,13 @@ test("all nine new lessons support independent diagnosis on mobile without page 
       !["linux", "containers"].includes(l.id),
   )) {
     await page.goto("/#/academy/" + l.id);
+    await openOptionalLearning(page);
     await page
       .getByRole("button", { name: "Eigenständige Challenge", exact: true })
       .click();
+    await openOptionalLearning(page);
     await page.getByRole("button", { name: "Internals", exact: true }).click();
+    await openOptionalLearning(page);
     await solveDiagnosis(page, l.id, true);
     await expect(page.getByTestId("deep-dive-count")).toContainText("1 von 1");
     await expect(page.getByTestId("deep-dive-status")).toHaveText(
@@ -140,6 +156,7 @@ test("version 3 imports retain guided credit without upgrading it to independent
   page,
 }) => {
   await page.goto("/#/settings");
+  await openOptionalLearning(page);
   await page.getByLabel("Lernstand importieren").setInputFiles({
     name: "v3.json",
     mimeType: "application/json",
@@ -161,6 +178,7 @@ test("version 3 imports retain guided credit without upgrading it to independent
     ),
   });
   await page.goto("/#/academy/etcd");
+  await openOptionalLearning(page);
   await expect(page.getByTestId("theory-status")).toHaveText(
     "Grundlagen abgeschlossen",
   );

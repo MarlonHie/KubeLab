@@ -9,10 +9,10 @@ export const phases = curriculum.map((module) => [
   module.topics,
   module.id,
 ]);
-export function quizFor(lesson: Lesson): QuizBlock {
+export function quizFor(lesson: Lesson): QuizBlock | undefined {
   return lesson.sections
     .flatMap((s) => s.blocks)
-    .find((b): b is QuizBlock => b.type === "quiz")!;
+    .find((b): b is QuizBlock => b.type === "quiz");
 }
 export function practiceTasks(lesson: Lesson): TaskBlock[] {
   return lesson.sections
