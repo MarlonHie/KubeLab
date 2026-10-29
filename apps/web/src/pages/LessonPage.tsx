@@ -8,8 +8,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import {
-  lessons,
-  curriculum,
+  quizFor,
   basicPracticeTasks,
   deepDiveTasks,
   deepDiveMastered,
@@ -117,7 +116,7 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
         </p>
         <div className="lesson-progress-badges">
           <span data-testid="theory-status">
-            {theory ? "Grundlagen abgeschlossen" : "Grundlagen offen"}
+            {theory ? "Grundlagen abgeschlossen" : quizFor(lesson) ? "Grundlagen offen" : "Kein Wissenscheck vorgesehen"}
           </span>
           <span data-testid="practice-status">
             {mastered
@@ -131,7 +130,7 @@ function LessonSession({ lesson }: { lesson: Lesson }) {
               ? "Deep Dive gemeistert"
               : advanced.length
                 ? "Deep Dive offen · optional"
-                : "Deep Dive noch nicht verfügbar"}
+                : "Keine gesonderte Deep-Dive-Prüfung"}
           </span>
         </div>
         {tasks.length > 0 && (

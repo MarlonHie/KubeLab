@@ -37,7 +37,7 @@ async function quorumTask(page: Page) {
   await page.getByRole("button", { name: /etcd-3/ }).click();
   await page.getByRole("button", { name: "Änderung schreiben" }).click();
 }
-test("all 23 lessons use the same page and retain their content", async ({
+test("all 27 lessons use the same page and retain their content", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -52,7 +52,7 @@ test("all 23 lessons use the same page and retain their content", async ({
       await expect(page.getByTestId("knowledge-check")).toBeVisible();
     else await expect(page.getByTestId("knowledge-check")).toHaveCount(0);
     await expect(page.getByTestId("theory-status")).toHaveText(
-      "Grundlagen offen",
+      quizFor(l) ? "Grundlagen offen" : "Kein Wissenscheck vorgesehen",
     );
   }
   expect(errors).toEqual([]);
@@ -70,6 +70,7 @@ test("client navigation and back reset quiz answers and feedback, but retain the
     .getByRole("link", { name: "Control Plane und Worker Nodes", exact: true })
     .click();
   await expect(page).toHaveURL(/control-plane$/);
+  await openOptionalLearning(page);
   await expect(
     page.getByTestId("knowledge-check").locator("input:checked"),
   ).toHaveCount(0);

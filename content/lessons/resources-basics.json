@@ -1,0 +1,165 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "resources-basics",
+  "title": "Kubernetes-Ressourcen, YAML und kubectl",
+  "description": "Wie du einen gewünschten Zustand beschreibst und herausfindest, was Kubernetes daraus gemacht hat.",
+  "moduleId": "05",
+  "category": "KUBERNETES IM ALLTAG",
+  "level": "Fundamentals",
+  "goals": [
+    "Manifestfelder und Namespace einordnen",
+    "Mit apply, get, describe und logs unterschiedliche Fragen beantworten"
+  ],
+  "sections": [
+    {
+      "id": "intro",
+      "title": "Wie sage ich Kubernetes, was laufen soll?",
+      "navLabel": "Wie sage ich Kubernetes, was laufen soll?",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Das KubeShop-Backend soll HTTP-Anfragen verarbeiten. Auf einem einzelnen Rechner würdest du vielleicht direkt ein Programm starten. In Kubernetes beschreibst du zuerst ein Objekt: Welche Art von Anwendungseinheit möchtest du, mit welchem Namen und welcher Konfiguration? Dieses dauerhaft über die API verwaltete Objekt ist eine Kubernetes-Ressource, etwa ein Pod, ein Deployment oder ein Service."
+        },
+        {
+          "type": "text",
+          "text": "Deklarativ bedeutet: Du formulierst ein Ziel, nicht jeden einzelnen Arbeitsschritt dorthin. Ein gespeichertes Ziel und ein tatsächlich erreichter Zustand sind zwei verschiedene Dinge. Die API kann einen Pod bereits kennen, während sein Image noch geladen wird. Deshalb gehört Beobachten genauso zur Arbeit wie Konfigurieren."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Unser Beispielvertrag",
+          "text": "Für KubeShop gibt es hier noch keine veröffentlichten Anwendungsimages. `<KUBESHOP_BACKEND_IMAGE>` und `<KUBESHOP_FRONTEND_IMAGE>` sind ausdrücklich Platzhalter, keine herunterladbaren Images. Das gedachte Backend lauscht auf 0.0.0.0:8080 und beantwortet /api/products; das Frontend auf Port 80. Alle Beispiele verwenden den Namespace default. Auf einem Arbeitscluster verwendest du den vom Team freigegebenen Namespace und passt Manifeste und Befehle gemeinsam an. Ein eigener Cluster ist zum Lesen nicht erforderlich."
+        }
+      ]
+    },
+    {
+      "id": "manifest",
+      "title": "Ein erstes Manifest lesen",
+      "navLabel": "Ein erstes Manifest lesen",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Eine Manifestdatei beschreibt Ressourcen in einer strukturierten Form. YAML ist verbreitet, weil Schlüssel, Listen und verschachtelte Werte gut lesbar sind; die Kubernetes-API ist nicht an YAML als einziges Format gebunden. Einrückung beschreibt die Struktur, ein Bindestrich einen Listeneintrag. Ein korrekt eingerücktes Dokument kann trotzdem fachlich falsch sein."
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "example",
+          "code": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: kubeshop-api-demo\n  namespace: default\n  labels:\n    app: kubeshop-api\nspec:\n  containers:\n    - name: api\n      image: \"<KUBESHOP_BACKEND_IMAGE>\"\n      ports:\n        - name: http\n          containerPort: 8080",
+          "caption": "Illustratives Manifest: Image-Platzhalter ersetzen. KubeLab führt dieses Beispiel nicht aus.",
+          "filename": "kubeshop-api-pod.yaml"
+        },
+        {
+          "type": "table",
+          "caption": "Die vier Grundfelder",
+          "headers": [
+            "Feld",
+            "Bedeutung im Beispiel"
+          ],
+          "rows": [
+            [
+              "apiVersion: v1",
+              "Die API-Version für diese Ressourcenart; nicht die installierte Kubernetes-Version."
+            ],
+            [
+              "kind: Pod",
+              "Die Art des Objekts. Die nächste Lektion erklärt diese Ausführungseinheit."
+            ],
+            [
+              "metadata",
+              "Identität und Kennzeichnungen: Name, Namespace und frei gewählte Labels."
+            ],
+            [
+              "spec",
+              "Der gewünschte Aufbau: hier ein Container mit Image und Portangabe."
+            ]
+          ]
+        },
+        {
+          "type": "text",
+          "text": "Der Containername api bezeichnet einen Container innerhalb des Pods; kubeshop-api-demo bezeichnet das Pod-Objekt. Das Label app: kubeshop-api ist eine Kennzeichnung, kein Startbefehl. containerPort dokumentiert den vorgesehenen Port. Es startet keinen HTTP-Server und macht ihn nicht automatisch von außen erreichbar."
+        }
+      ]
+    },
+    {
+      "id": "namespace",
+      "title": "Der Namespace gibt dem Namen einen Kontext",
+      "navLabel": "Der Namespace gibt dem Namen einen Kontext",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Ein Namespace ordnet viele Ressourcen einem logischen Bereich zu. default und ein Team-Namespace können jeweils einen Pod mit demselben Namen enthalten; es sind verschiedene Objekte. Deshalb nennen die Beispiele ihren Namespace ausdrücklich. Nicht jede Ressourcenart ist namespaced: Nodes sind beispielsweise clusterweit."
+        },
+        {
+          "type": "text",
+          "text": "Ein Kubernetes-Namespace ist nicht der Linux-Namespace eines Containers. Er macht auch keine automatische Netzwerk- oder Sicherheitsisolation. Für den Anfang ist die wichtigste Gewohnheit: Prüfe Clusterkontext und Namespace, bevor du ein Objekt suchst oder änderst. Ein leeres get im falschen Namespace beweist nicht, dass die Anwendung nirgends existiert."
+        }
+      ]
+    },
+    {
+      "id": "kubectl",
+      "title": "Beschreiben, anwenden, untersuchen",
+      "navLabel": "Beschreiben, anwenden, untersuchen",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "kubectl ist ein Client für die Kubernetes-API. Seine lokale Konfiguration bestimmt, mit welchem Cluster und welcher Identität er spricht. Die folgenden Befehle zeigen den Ablauf für ein bereits vorhandenes, autorisiertes Arbeitscluster. Sie sind keine Browser-Shell-Befehle. Erst mit einem geeigneten echten Backend-Image wird aus dem illustrativen Manifest ein ausführbares Beispiel."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "code": "kubectl config current-context\nkubectl -n default apply -f kubeshop-api-pod.yaml\nkubectl -n default get pods\nkubectl -n default describe pod kubeshop-api-demo\nkubectl -n default logs kubeshop-api-demo -c api",
+          "caption": "Optionaler Ablauf im externen Terminal. Vor apply das Image ersetzen; kein Clusterzugriff durch KubeLab."
+        },
+        {
+          "type": "text",
+          "text": "apply übermittelt die Konfiguration und erstellt oder aktualisiert das Objekt, soweit seine API-Regeln diese Änderung erlauben. Es ist kein allgemeiner Ersatz für Löschen und Neuanlegen: Manche Felder sind nicht veränderbar. get gibt einen Überblick oder die gespeicherten Objektdaten. describe stellt Details und verfügbare Ereignisse zusammen. logs liest die Container-Ausgabe; hat der Container noch nie gestartet, gibt es dort möglicherweise noch keinen Anwendungslog."
+        },
+        {
+          "type": "text",
+          "text": "Angenommen, apply war erfolgreich, get zeigt aber einen wartenden Container. describe kann einen Image-Pull-Fehler sichtbar machen. Dann ist das Manifest gespeichert, aber das Programm läuft nicht. Ein blindes Wiederholen von apply repariert weder einen falschen Image-Namen noch fehlende Registry-Berechtigungen. Du untersuchst die erste Grenze, an der der gewünschte Zustand nicht erreicht wird."
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Vom Request zur Ausführung",
+      "navLabel": "Optional: Vom Request zur Ausführung",
+      "blocks": [
+        {
+          "type": "code",
+          "language": "text",
+          "execution": "example",
+          "code": "kubectl → API Server → gespeicherter gewünschter Zustand\n                       ↓ beobachten und abgleichen\n                 Controller / Scheduler / kubelet",
+          "caption": "Vereinfachte Verantwortungsansicht, keine synchrone Befehlsleitung."
+        },
+        {
+          "type": "text",
+          "text": "Der API Server nimmt einen zulässigen Request an. Andere Komponenten beobachten Ressourcen und reagieren auf ihren jeweiligen Teil der Aufgabe. Für diesen direkt angelegten Pod muss beispielsweise ein Node zugeordnet und der Container lokal gestartet werden. Ein Deployment würde zusätzlich Controller zur Verwaltung seiner Kinder einbeziehen. Ein gespeichertes Objekt ist keine Zusage sofortiger Ausführung."
+        },
+        {
+          "type": "text",
+          "text": "Die verlinkten Vertiefungen zu API-Lebenszyklus und apply-to-pod erläutern die einzelnen Grenzen. Für die nächsten Alltagslektionen genügt: Ziel schreiben, beobachteten Zustand lesen, Abweichung erklären."
+        }
+      ],
+      "collapsible": true
+    }
+  ],
+  "sources": [
+    {
+      "title": "Kubernetes-Objekte",
+      "url": "https://kubernetes.io/docs/concepts/overview/working-with-objects/"
+    },
+    {
+      "title": "Namespaces",
+      "url": "https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/"
+    },
+    {
+      "title": "kubectl Quick Reference",
+      "url": "https://kubernetes.io/docs/reference/kubectl/quick-reference/"
+    }
+  ],
+  "reviewedOn": "2026-10-29"
+}

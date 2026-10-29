@@ -2,6 +2,22 @@
 
 Stand: 28. Oktober 2026 · Didaktischer Ideenfundus, **noch keine implementierte Beispielanwendung**. KubeShop ist ein freiwilliger roter Faden neben anderen geeigneten Beispielen. Freiwillige Pfade und Themenideen: [Lernpfad](learning-path.md). Bestandszuordnung: [Audit](content-audit.md). Umsetzung und Migration: [Roadmap](content-roadmap.md).
 
+## Umgesetzter Einstieg im Alltagspfad · 29. Oktober 2026
+
+Die fünf Grundlagenlektionen verwenden jetzt einen engeren Beispielvertrag als die unten erhaltene Acht-Stufen-Idee. Die API ist von Anfang an der Lerngegenstand; das Frontend kommt als Kommunikationspartner in Services und als vollständiges Deployment in Ingress hinzu. Es gibt weiterhin keinen ausgelieferten Shop-Code und keine veröffentlichten Shop-Images.
+
+| Lektion | Konkrete Weiterentwicklung |
+| --- | --- |
+| `resources-basics` | Backend als Pod `kubeshop-api-demo` beschreiben und mit kubectl untersuchen |
+| `pods` | Netzwerk, Volumes, Neustart und Verlust dieses unverwalteten Pods erklären |
+| `deployments` | Demo-Pod entfernen; Deployment `kubeshop-api` mit drei Replikaten übernimmt die Absicht |
+| `networking` | Service `kubeshop-api`, Port 80 → 8080, als stabilen Zugang und DNS-Namen ergänzen |
+| `ingress` | Frontend-Deployment/Service `kubeshop-web`, Port 80, hinzufügen; Host `shop.example.test` mit `/` zum Frontend und `/api` zur API, wahlweise Ingress oder Gateway/HTTPRoute |
+
+Alle Ressourcen verwenden `default` und Labels `app: kubeshop-api` bzw. `app: kubeshop-web`. Image-Platzhalter sind ausdrücklich `<KUBESHOP_BACKEND_IMAGE>` und `<KUBESHOP_FRONTEND_IMAGE>`. Das gedachte Backend verarbeitet `/api/products` auf `0.0.0.0:8080`; keine Rewrite-Regeln werden vorausgesetzt. Interner Service-Zugriff aus einem Frontend-Server wird von JavaScript im externen Kundenbrowser unterschieden. Ein realer Versuch erfordert eigene passende Images und die vom Clusterteam angebotenen Klassen/Netzwerkdienste.
+
+[Umsetzung, Wiederverwendung und Grenzen](everyday-phase-1.md). Die nachfolgenden K-IDs beschreiben weiterhin mögliche spätere Themen, nicht die aktuelle Reihenfolge oder schon vorhandene Shop-Funktionen.
+
 ## Produkt und didaktischer Vertrag
 
 KubeShop ist ein kleiner Lernshop: Produkte ansehen, eine Testbestellung anlegen, ihren Status abfragen und später die Verarbeitung beobachten. Keine echten Zahlungen, Kundendaten, externen Maildienste oder Cloud-Konten. Ein fester Produktkatalog, erfundene Kunden und wiedererkennbare Bestell-IDs halten die Fachdomäne klein. Anwendungscode und Images werden später vorbereitet geliefert; der Kurs bewertet Kubernetes-Verständnis, keine Frontend- oder Datenbankprogrammierung.

@@ -1,6 +1,6 @@
 # Content-Audit · KubeLab
 
-Stand: 28. Oktober 2026. Untersucht wird der vorhandene Repository-Stand 0.3.0, nicht ausschließlich die im Gespräch besprochene ZIP-Version 0.2.2. Die Bestandsabschnitte dokumentieren den Ausgangspunkt; der folgende Änderungsstand beschreibt die implementierte Lernplattform 2.0. Die detaillierten Inventare bleiben als überprüfbare Herkunftsnachweise erhalten.
+Bestandsaufnahme: 28. Oktober 2026; Content-Erweiterung: 29. Oktober 2026. Untersucht wird der vorhandene Repository-Stand 0.3.0, nicht ausschließlich die im Gespräch besprochene ZIP-Version 0.2.2. Die Bestandsabschnitte dokumentieren den Ausgangspunkt; der folgende Änderungsstand beschreibt die implementierte Lernplattform 2.0. Die detaillierten Inventare bleiben als überprüfbare Herkunftsnachweise erhalten.
 
 ## Methode und Prüfumfang
 
@@ -9,7 +9,15 @@ Inventar aller 22 JSON-Lektionen einschließlich Blöcken, Quellen, Aufgaben und
 Für die ursprüngliche Bestandsaufnahme erfolgte keine neue Ausführung von Browser-, Unit- oder VM-Tests; kein vollständiges aktuelles Fach- oder Linkreview aller Quellen. Die 138 Unit- und 30 E2E-Tests im bisherigen Review sind ein historischer Bericht. Eine positive Schema- oder Modellprüfung belegt weder Lernwirksamkeit noch echte Clusterfunktion. Zeitspannen unten sind redaktionelle Schätzungen anhand vorhandener Aktivitäten, keine gemessenen Lernerzeiten.
 
 
-## Implementierter Änderungsstand · Lernplattform 2.0
+## Aktueller Bestand · Content-Phase 1, 29. Oktober 2026
+
+Jetzt **27 verfügbare Lektionen**: vier neue (`resources-basics`, `pods`, `deployments`, `ingress`) und die unter derselben ID ausgebaute `networking` als „Services und DNS“. Die zuvor vorhandenen 23 Lektionen bleiben erhalten. Bestehende Networking-Erklärung, Diagnose und Quiz stehen weiter zur Verfügung; die wiederholende Diagnose ist optional aufklappbar. Der frühere pauschale Zeitwert dieser Lektion wurde entfernt, neue Lektionen enthalten keine unbegründeten Zeitvorgaben.
+
+Die fünf Grundlagen decken den praktischen Zusammenhang von Manifest bis HTTP-Einstieg ab. Fortgeschrittene Architektur, Konfigurations-/Storage- und produktionsreife Betriebsaspekte bleiben eigenständige Vertiefungen bzw. Ausbauziele. Vier neue Lektionen benötigen keine künstlichen Quizfragen. Das Reconciliation-Ablaufmodell wird zusätzlich in Deployments eingebettet; es entsteht keine neue Modellart. 58 ursprüngliche Aufgabenblöcke und 58 Quizfragen bleiben erhalten.
+
+Vollständige Inhalts-/Visualisierungszuordnung, Beispielvertrag und aktuelle Testnachweise: [Content-Phase 1](everyday-phase-1.md). Die folgenden Zahlen und Aussagen über unveränderte Inhalte beschreiben jeweils den ausdrücklich benannten historischen Ausgangsstand.
+
+## Historischer Änderungsstand · Lernplattform 2.0 (vor Content-Phase 1)
 
 Die 22 ursprünglichen JSON-Lektionen bleiben unverändert. Eine gezielte neue Lektion `zalando-postgres` ergänzt den direkten Einstieg in Manifest, Verbindung, Diagnose und Patroni. Damit 23 verfügbare Lektionen, weiterhin 58 ursprüngliche Aufgabenblöcke und 58 Quizfragen. Die neue Lektion benötigt weder Quiz noch Aufgabe. Die zuvor erfassten Zeitangaben sind historische Orientierungen, keine Mindestanforderung; Dauer ist im Schema jetzt optional.
 

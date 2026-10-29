@@ -1,6 +1,6 @@
 # Lernpfade und zentrale Inhaltsbibliothek
 
-Stand: 28. Oktober 2026 · Lernplattform 2.0. KubeLab hilft Menschen, Kubernetes zu verstehen. Es ist weder eine verpflichtende Ausbildung zum Experten noch eine Prüfungslaufbahn. Themen können einzeln geöffnet, Lernpfade gewechselt und Internals direkt gelesen werden. Kein Konto, kein eigener Cluster und keine kostenpflichtige Backend-Infrastruktur sind notwendig.
+Stand: 29. Oktober 2026 · Lernplattform 2.0. KubeLab hilft Menschen, Kubernetes zu verstehen. Es ist weder eine verpflichtende Ausbildung zum Experten noch eine Prüfungslaufbahn. Themen können einzeln geöffnet, Lernpfade gewechselt und Internals direkt gelesen werden. Kein Konto, kein eigener Cluster und keine kostenpflichtige Backend-Infrastruktur sind notwendig.
 
 ## Informationsarchitektur – umgesetzt
 
@@ -18,11 +18,17 @@ Verbindliche Implementierungsquelle ist [library.ts](../../packages/lesson-engin
 
 | Lernpfad | Für wen? | Empfohlene Themengruppen |
 | --- | --- | --- |
-| A · Kubernetes im Alltag (`alltag`) | Entwickler auf bestehenden Clustern | Orientierung/kubectl/YAML/Namespaces; Pods/Deployments/ReplicaSets; ConfigMaps/Secrets; Services/DNS; Ingress/Gateway; Ressourcen/Probes/Skalierung; Storage/StatefulSets; CRDs/Operatoren; Zalando Postgres Operator; Monitoring/Logs/Fehlersuche; Helm/Kustomize/GitOps; RBAC/ServiceAccounts |
+| A · Kubernetes im Alltag (`alltag`) | Entwickler auf bestehenden Clustern | Ressourcen/YAML/kubectl → Pods → Deployments/ReplicaSets → Services/DNS → Ingress/Gateway; Orientierung vertiefen; weitere Workloads; ConfigMaps/Secrets; Ressourcen/Probes/Skalierung; Storage/StatefulSets; CRDs/Operatoren; Zalando Postgres Operator; Monitoring/Logs/Fehlersuche; Helm/Kustomize/GitOps; RBAC/ServiceAccounts |
 | B · Kubernetes verstehen (`verstehen`) | Einsteiger und neugierige Entwickler | Linux; Container/Runtime; Warum Kubernetes/Clusterbegriffe; Rollen/Control Plane/Worker; API/etcd; Controller; Scheduler/kubelet; Networking; Storage; Erweiterbarkeit |
 | C · Kubernetes betreiben (`betreiben`) | Menschen mit Interesse am Clusterbetrieb | Bootstrap/kubeadm; Runtime/Nodes; CNI/Cilium; Netz/DNS; Storage/CSI; Observability; Security; HA; Backup/Recovery; Upgrades/Troubleshooting/IaC |
 
 Vorhandene Architekturlektionen bilden besonders Pfad B. Pfad A verlangt keine vorherige Installation oder Raft-Kenntnis. Pfad C ist als Verständnisweg mit Beispielen/Modellen zugänglich; optionale externe Befehle werden nicht im Browser ausgeführt. Fehlende Kursstrecken werden als geplant sichtbar, nicht als bereits fertiger Kurs verkauft. „Weiterlernen“ sucht die nächste ungelesene **verfügbare** Lektion; innerhalb des Pfads bleiben geplante Themen ebenfalls sichtbar. Beim nächsten Thema in einer Lektion gilt die tatsächliche Metadatenreihenfolge, auch wenn dieses Thema noch geplant ist.
+
+## Ausgelieferter Alltagseinstieg · Content-Phase 1
+
+Die ersten fünf Themen von `alltag` sind jetzt vollständige, aufeinander aufbauende Lektionen: `resources-basics`, `pods`, `deployments`, `networking`, `ingress`. Alle sind auch einzeln über Entdecken erreichbar. Das vorhandene `networking` wurde erweitert, nicht durch eine neue ID ersetzt. Die zuvor geplanten Karten Pods, Deployments und Ingress werden automatisch durch ihre verfügbaren Lektionen ersetzt. Gateway-Details bleiben ein separates Ausbauziel, der Einstieg ist bereits in Ingress enthalten.
+
+KubeShop verbindet die fünf Erklärungen; vertiefende Architektur ist keine Zugangsvoraussetzung. Zusätzliche `deepDiveLinks` verweisen direkt auf bestehende Internals anderer Lektionen und werden auf gültige Zielabschnitte geprüft. Ausführliche Zuordnung und Prüfbericht: [Content-Phase 1](everyday-phase-1.md).
 
 ## Lernen und Fortschritt
 

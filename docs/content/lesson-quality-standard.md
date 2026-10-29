@@ -64,3 +64,7 @@ Tastaturbedienung, sichtbarer Fokus, verständliche Beschriftungen, schmale Bild
 | Externes Lab | Reproduktionsprotokoll oder ausdrückliche Kennzeichnung als nicht verifiziert |
 
 Fehlerhafte Kernbehauptungen, Datenverlust, vorgetäuschte Ausführung und unzugängliche notwendige Navigation verhindern die Freigabe. Umfang der Tests und Reviews folgt dem Risiko der Änderung. Fachreview und Pilotierung bleiben menschliche redaktionelle Arbeit; Tests allein bestätigen keine Lernwirksamkeit.
+
+## Referenzumsetzung: Alltagseinstieg
+
+Die [Content-Phase 1](everyday-phase-1.md) setzt den Standard an fünf verbundenen Lektionen um: konkrete Probleme, erklärte und konsistente Manifeste, optionale Internals, gezielte Wiederverwendung statt neuer Pflichtspiele. Bei Änderungen am Beispielvertrag müssen `tests/everyday-content.test.ts` und die Browserabläufe weiter bestehen. Sie prüfen Syntax, Labels, Zielports, Routingreferenzen, Navigation und Fortschritt; sie ersetzen weder Kubernetes-Admission noch einen echten Anwendungstest. Offensichtliche Image-Platzhalter bleiben sichtbar, solange keine echten Images bereitgestellt sind. Alte Lektions-IDs und Nachweise werden bei inhaltlicher Erweiterung erhalten.

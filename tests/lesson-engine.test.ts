@@ -35,8 +35,8 @@ function strings(value: unknown): string[] {
 }
 const example = () => structuredClone(architectureLessons[0]);
 describe("declarative lesson schema and lossless migration", () => {
-  it("validates all 23 lessons including preserved introductions and validates every document", () => {
-    expect(lessons).toHaveLength(23);
+  it("validates all 27 lessons including preserved introductions and validates every document", () => {
+    expect(lessons).toHaveLength(27);
     expect(parseCatalog(lessons)).toEqual(lessons);
   });
   it.each(original.map((l) => [l.id, l] as const))(

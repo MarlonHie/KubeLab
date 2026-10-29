@@ -1,15 +1,144 @@
 {
   "id": "networking",
-  "title": "Vom Pod zum Service",
+  "title": "Services und DNS",
   "description": "Pod-Netz, Service-Selektoren, EndpointSlices und DNS gemeinsam verstehen.",
   "category": "NETWORKING",
-  "duration": 20,
   "$schema": "../../packages/lesson-engine/lesson.schema.json",
   "schemaVersion": 1,
   "moduleId": "07",
-  "level": "Deep Dive",
-  "goals": [],
+  "level": "Fundamentals",
+  "goals": [
+    "Service-Zielwahl, DNS-Auflösung und tatsächliche Erreichbarkeit unterscheiden",
+    "Service-Port und targetPort am KubeShop-Beispiel zuordnen"
+  ],
   "sections": [
+    {
+      "id": "shop-problem",
+      "title": "Wie findet das Frontend wechselnde Backend-Pods?",
+      "navLabel": "Wie findet das Frontend wechselnde Backend-Pods?",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Das Deployment hält drei Backend-Replikate vor. Nach einem Update oder Ersatz können sich ihre Namen und IP-Adressen ändern. Würde das Frontend eine einzelne Pod-IP speichern, müsste es diese Änderungen selbst verfolgen. Ein Service gibt der Anwendung einen stabilen logischen Zugang und wählt die passenden Pods aus."
+        },
+        {
+          "type": "text",
+          "text": "Der Service führt keinen Anwendungscode aus und erzeugt keine Pods. Deployment und ReplicaSet betreuen die Instanzen; der Service beschreibt den Zugriff. Diese Trennung erlaubt, Replikate zu ersetzen, ohne jedes Mal die Konfiguration des Frontends umzuschreiben."
+        }
+      ]
+    },
+    {
+      "id": "shop-service",
+      "title": "Deployment und Service passen über Labels zusammen",
+      "navLabel": "Deployment und Service passen über Labels zusammen",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Das folgende Deployment entspricht unverändert der Vorlage aus der vorigen Lektion. Es ist hier nochmals direkt beim Service sichtbar, damit du die entscheidende Zuordnung vergleichen kannst. Alle Image-Werte in spitzen Klammern sind illustrative Platzhalter; keine echten KubeShop-Images werden angeboten."
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "example",
+          "code": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: kubeshop-api\n  namespace: default\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: kubeshop-api\n  template:\n    metadata:\n      labels:\n        app: kubeshop-api\n    spec:\n      containers:\n        - name: api\n          image: \"<KUBESHOP_BACKEND_IMAGE>\"\n          ports:\n            - name: http\n              containerPort: 8080",
+          "caption": "Illustratives Manifest: Image-Platzhalter ersetzen. KubeLab führt dieses Beispiel nicht aus.",
+          "filename": "kubeshop-api-deployment.yaml"
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "example",
+          "code": "apiVersion: v1\nkind: Service\nmetadata:\n  name: kubeshop-api\n  namespace: default\nspec:\n  type: ClusterIP\n  selector:\n    app: kubeshop-api\n  ports:\n    - name: http\n      port: 80\n      targetPort: 8080",
+          "caption": "Illustratives Service-Manifest für die Backend-Vorlage oben. Es startet keine Pods und benötigt einen funktionierenden Cluster-Datenpfad.",
+          "filename": "kubeshop-api-service.yaml"
+        },
+        {
+          "type": "text",
+          "text": "Der Service-Selektor app: kubeshop-api passt zu den Labels unter spec.template.metadata.labels. Entscheidend sind Labels und Namespace, nicht der ähnliche Objektname. port: 80 ist der Port, den der Client am Service anspricht; targetPort: 8080 ist der Zielport des Backend-Prozesses. Der Prozess muss dort tatsächlich lauschen."
+        },
+        {
+          "type": "text",
+          "text": "Bei einem gewöhnlichen ClusterIP-Service vergibt der Cluster eine virtuelle IP. Diese Adresse ist der stabile Zugang während der Lebensdauer des Service-Objekts. Sie ist nicht die IP eines zusätzlichen Anwendungs-Pods. Wird der Service selbst gelöscht und neu angelegt, ist eine identische IP keine allgemeine Zusage."
+        }
+      ]
+    },
+    {
+      "id": "shop-dns",
+      "title": "Vom Namen bis zur Anwendung",
+      "navLabel": "Vom Namen bis zur Anwendung",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Mit funktionierendem Cluster-DNS kann ein Pod im Namespace default den Service als kubeshop-api ansprechen. Aus einem anderen Namespace ist kubeshop-api.default eindeutiger. Der vollständige Name hat typischerweise die Form kubeshop-api.default.svc.cluster.local; die Cluster-Domain kann anders konfiguriert sein. DNS beantwortet die Namensfrage, nicht automatisch die Frage nach erreichbaren Pods."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "code": "curl http://kubeshop-api/api/products",
+          "caption": "Beispielaufruf aus einem bereits laufenden Frontend-/Diagnosecontainer im Namespace default, sofern curl dort vorhanden ist. Nicht im Browserterminal oder automatisch auf dem Laptop auflösbar."
+        },
+        {
+          "type": "text",
+          "text": "Für diese Verbindung denken wir das Frontend als serverseitige Komponente im Cluster. JavaScript im Browser des Kunden läuft dagegen auf dessen Rechner und kann die internen Service-Namen normalerweise nicht verwenden. Die nächste Lektion bietet dafür eine externe Shop-Adresse und einen /api-Pfad an. Der Backend-Pfad /api/products bleibt in allen Beispielen erhalten; es wird kein verstecktes Umschreiben vorausgesetzt."
+        }
+      ]
+    },
+    {
+      "id": "shop-endpoints",
+      "title": "Was sich bei einem Pod-Ersatz ändert",
+      "navLabel": "Was sich bei einem Pod-Ersatz ändert",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "EndpointSlices enthalten die zu einem Service gehörenden Zieladressen und Zustandsinformationen. Der zuständige Controller beobachtet die passenden Pods. Wenn ein Pod ersetzt wird, werden die Zielinformationen angepasst; regulärer Zugriff berücksichtigt deren Bereitschaft. Das passiert nicht als eine einzige sofortige Transaktion."
+        },
+        {
+          "type": "code",
+          "language": "text",
+          "execution": "example",
+          "code": "Frontend-Pod\n    │ HTTP an kubeshop-api:80\n    ▼\nService kubeshop-api ── Zielauswahl aus EndpointSlices\n    ├── Backend-Pod A:8080\n    ├── Backend-Pod B:8080\n    └── Backend-Pod C:8080\n\nNach Ersatz: A entfällt, D kommt als neues bereites Ziel hinzu.\nName des Service bleibt: kubeshop-api",
+          "caption": "Vereinfachte Zugriffsbeziehungen, keine Paketmessung und kein Prozess, der im Service selbst läuft."
+        },
+        {
+          "type": "text",
+          "text": "Eine bestehende Verbindung zu einem gerade beendeten Pod kann abbrechen. Der Service setzt sie nicht nahtlos auf einem anderen Pod fort. Clients benötigen passende Fehlerbehandlung; ein erfolgreiches DNS-Ergebnis allein beweist keine funktionierende HTTP-Anfrage. Die vorhandene optionale Diagnose unten zeigt, wie falsche Labels von anderen Ursachen getrennt werden."
+        }
+      ]
+    },
+    {
+      "id": "shop-types",
+      "title": "Welcher Zugang wird bereitgestellt?",
+      "navLabel": "Welcher Zugang wird bereitgestellt?",
+      "blocks": [
+        {
+          "type": "table",
+          "caption": "Drei häufige Service-Typen",
+          "headers": [
+            "Typ",
+            "Zugang und Voraussetzung"
+          ],
+          "rows": [
+            [
+              "ClusterIP",
+              "Virtuelle Adresse im Clusternetz; der normale interne Zugang, nicht automatisch ein öffentlicher Endpunkt."
+            ],
+            [
+              "NodePort",
+              "Zusätzlicher Port auf Nodes gemäß Clusterkonfiguration; Node-Erreichbarkeit und Firewall bleiben Voraussetzungen."
+            ],
+            [
+              "LoadBalancer",
+              "Fordert eine externe Anbindung durch eine passende Implementierung an; ohne diese entsteht nicht automatisch ein funktionierender Load Balancer."
+            ]
+          ]
+        },
+        {
+          "type": "text",
+          "text": "Für KubeShops interne API verwenden wir ClusterIP. Externe HTTP-Veröffentlichung soll Hostnamen und Pfade kontrollieren, statt für jedes Backend einen eigenen offenen Port zu verteilen. Dafür betrachten wir nun Ingress und Gateway API. Auch dort bleibt der Service das Backend-Ziel."
+        }
+      ]
+    },
     {
       "id": "section-1",
       "title": "Drei Ebenen für die Fehlersuche",
@@ -84,7 +213,24 @@
           "type": "text",
           "text": "[Services](https://kubernetes.io/docs/concepts/services-networking/service/) · [EndpointSlices](https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/)"
         }
-      ]
+      ],
+      "collapsible": true
+    },
+    {
+      "id": "internals",
+      "title": "DNS und Service-Datenpfad",
+      "navLabel": "Optional: DNS und Service-Datenpfad",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "CoreDNS ist eine häufige Umsetzung des Cluster-DNS. Der EndpointSlice-Controller pflegt Zielinformationen, während ein Datenpfad diese für Weiterleitung oder Lastverteilung nutzt. In vielen Clustern übernimmt kube-proxy entsprechende Programmierung; andere Installationen verwenden etwa Cilium mit eBPF. Welche Komponenten tatsächlich zuständig sind, hängt vom gewählten Profil ab."
+        },
+        {
+          "type": "text",
+          "text": "Ein Paket läuft nicht bei jeder Anfrage durch einen zentralen Service-Prozess oder durch den API Server. DNS-Auflösung, Auswahl eines Endpunkts, Netzwerkweg und HTTP-Antwort sind getrennte Grenzen. Die vorhandene Cilium-Lektion und Linux-Netzwerkgrundlagen vertiefen diese Sicht. Zusätzliche Details zum EndpointSlice-Controller stehen in der technischen Quelle."
+        }
+      ],
+      "collapsible": true
     },
     {
       "id": "knowledge",
@@ -120,7 +266,15 @@
     {
       "title": "EndpointSlices",
       "url": "https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/"
+    },
+    {
+      "title": "DNS für Services und Pods",
+      "url": "https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/"
+    },
+    {
+      "title": "Virtuelle Service-IPs",
+      "url": "https://kubernetes.io/docs/reference/networking/virtual-ips/"
     }
   ],
-  "reviewedOn": "2026-10-11"
+  "reviewedOn": "2026-10-29"
 }

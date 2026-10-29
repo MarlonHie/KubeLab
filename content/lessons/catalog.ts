@@ -1,3 +1,7 @@
+import everyday0 from "./resources-basics.json" with { type: "json" };
+import everyday1 from "./pods.json" with { type: "json" };
+import everyday2 from "./deployments.json" with { type: "json" };
+import everyday3 from "./ingress.json" with { type: "json" };
 import zalando from "./zalando-postgres.json" with { type: "json" };
 import foundation0 from "./linux-processes.json" with { type: "json" };
 import foundation1 from "./linux-namespaces.json" with { type: "json" };
@@ -22,6 +26,7 @@ import lesson10 from "./component-failures.json" with { type: "json" };
 import lesson11 from "./networking.json" with { type: "json" };
 import lesson12 from "./cilium.json" with { type: "json" };
 export const lessonDocuments = [
+  everyday0, everyday1, everyday2, everyday3,
   zalando,
   lesson0,
   foundation0,

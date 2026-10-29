@@ -1,0 +1,166 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "deployments",
+  "title": "Deployments und ReplicaSets",
+  "description": "Wie aus einem einzelnen Backend-Pod eine betreute Anwendung mit Replikaten und kontrollierten Updates wird.",
+  "moduleId": "05",
+  "category": "KUBERNETES IM ALLTAG",
+  "level": "Fundamentals",
+  "goals": [
+    "Deployment, ReplicaSet und Pods ihren Aufgaben zuordnen",
+    "Replikate, Rolling Update und Rollback einschließlich ihrer Grenzen erklären"
+  ],
+  "sections": [
+    {
+      "id": "intro",
+      "title": "Wer ersetzt einen ausgefallenen Backend-Pod?",
+      "navLabel": "Wer ersetzt einen ausgefallenen Backend-Pod?",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Ein einzelner Pod beschreibt eine Instanz. Für KubeShop wollen wir eine beständige Absicht ausdrücken: Drei Backend-Instanzen sollen laufen, auch wenn einzelne Pods verschwinden. Ein Deployment hält die gewünschte Pod-Vorlage und organisiert ihre Änderungen. Es verwaltet dafür ReplicaSets. Ein ReplicaSet sorgt für die passende Zahl von Pods seiner Vorlage."
+        },
+        {
+          "type": "code",
+          "language": "text",
+          "execution": "example",
+          "code": "Deployment kubeshop-api\n    └─ ReplicaSet einer Pod-Vorlage\n         ├─ Backend-Pod\n         ├─ Backend-Pod\n         └─ Backend-Pod",
+          "caption": "Besitz-/Verwaltungsbeziehungen, keine Netzwerkverbindungen. Kubernetes vergibt die Namen der generierten ReplicaSets und Pods."
+        },
+        {
+          "type": "text",
+          "text": "Ein Deployment startet also nicht direkt drei Prozesse. Die Controller verwalten API-Objekte; Scheduling und lokale Ausführung folgen. Die Details dieses Ablaufs sind bereits in den Architekturlektionen erklärt. Hier konzentrieren wir uns auf die gewünschte Anwendung und ihre beobachtbaren Änderungen."
+        }
+      ]
+    },
+    {
+      "id": "manifest",
+      "title": "Drei Replikate aus einer Vorlage",
+      "navLabel": "Drei Replikate aus einer Vorlage",
+      "blocks": [
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Illustration, keine fertigen Shop-Images",
+          "text": "Für KubeShop gibt es hier noch keine veröffentlichten Anwendungsimages. `<KUBESHOP_BACKEND_IMAGE>` und `<KUBESHOP_FRONTEND_IMAGE>` sind ausdrücklich Platzhalter, keine herunterladbaren Images. Das gedachte Backend lauscht auf 0.0.0.0:8080 und beantwortet /api/products; das Frontend auf Port 80. Alle Beispiele verwenden den Namespace default. Auf einem Arbeitscluster verwendest du den vom Team freigegebenen Namespace und passt Manifeste und Befehle gemeinsam an. Ein eigener Cluster ist zum Lesen nicht erforderlich."
+        },
+        {
+          "type": "text",
+          "text": "Die Pod-Vorlage unter template enthält die bekannte Backend-Konfiguration. Vor einem echten Versuch entfernst du den unverwalteten Demo-Pod aus der vorigen Lektion. Sonst könnte ein späterer Service mit demselben Label auch diesen zusätzlichen Pod auswählen."
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "example",
+          "code": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: kubeshop-api\n  namespace: default\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: kubeshop-api\n  template:\n    metadata:\n      labels:\n        app: kubeshop-api\n    spec:\n      containers:\n        - name: api\n          image: \"<KUBESHOP_BACKEND_IMAGE>\"\n          ports:\n            - name: http\n              containerPort: 8080",
+          "caption": "Illustratives Manifest: Image-Platzhalter ersetzen. KubeLab führt dieses Beispiel nicht aus.",
+          "filename": "kubeshop-api-deployment.yaml"
+        },
+        {
+          "type": "text",
+          "text": "replicas: 3 ist die gewünschte Zahl, keine Garantie für drei sofort bereite Instanzen. selector.matchLabels legt fest, welche Labels die verwalteten Pods besitzen sollen. Diese Auswahl muss zur Pod-Vorlage passen. metadata.labels am Deployment allein würden die Pods nicht beschriften. Ein Label ist eine Zuordnungshilfe; die Eigentümerbeziehung selbst wird zusätzlich durch OwnerReferences ausgedrückt."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "code": "kubectl -n default delete pod kubeshop-api-demo --ignore-not-found\nkubectl -n default apply -f kubeshop-api-deployment.yaml\nkubectl -n default get deployments,replicasets,pods -l app=kubeshop-api\nkubectl -n default get deployment kubeshop-api",
+          "caption": "Optionale externe Befehle nach Ersetzen des Image-Platzhalters. Das Deployment selbst hat in dieser Vorlage kein app-Label; der letzte Befehl fragt es ausdrücklich per Name ab."
+        }
+      ]
+    },
+    {
+      "id": "replacement",
+      "title": "Ausfall und gewünschte Zahl auseinanderhalten",
+      "navLabel": "Ausfall und gewünschte Zahl auseinanderhalten",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Löscht du einen vom ReplicaSet verwalteten Pod, bemerkt dessen Controller die Abweichung und veranlasst Ersatz. Die neue Instanz kann erst später bereit sein; fehlende Kapazität oder ein nicht erreichbares Image können den Ersatz blockieren. Änderst du dagegen replicas auf 0, ist das ein neues gültiges Ziel und kein zu reparierender Ausfall."
+        },
+        {
+          "type": "experiment",
+          "id": "reconcile",
+          "kind": "reconciliation"
+        },
+        {
+          "type": "text",
+          "text": "Das wiederverwendete Modell zeigt einen festen Übergang von einer zu drei bereiten Instanzen und einen erneuten Abgleich. Es startet keine Container und simuliert keinen vollständigen Rolling Update. Im verlinkten Playground kannst du zusätzlich die Replikazahl eines vereinfachten Deployments ändern. Generierte Pods dieses Browsermodells sind keine einzeln löschbaren echten Kubernetes-Pods; der externe Vorgang oben ist davon zu unterscheiden."
+        }
+      ]
+    },
+    {
+      "id": "updates",
+      "title": "Eine neue Version schrittweise übernehmen",
+      "navLabel": "Eine neue Version schrittweise übernehmen",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Eine Änderung der Pod-Vorlage, etwa des Image-Verweises, erzeugt einen neuen Rollout. Das Deployment organisiert ein neues ReplicaSet und verändert alte/neue Replikazahlen schrittweise. Eine reine Skalierung ist dagegen kein neues Anwendungsrelease. Während des Updates können Pods unterschiedlicher Vorlagen gleichzeitig existieren."
+        },
+        {
+          "type": "text",
+          "text": "Ein falsches neues Image kann den Rollout blockieren. Je nach Strategie und Bereitschaft bleiben alte Instanzen verfügbar; eine pauschale Ausfallfreiheit folgt daraus nicht. Schaue auf Rollout-Status, ReplicaSets und Pod-Befunde. Eine überschrittene Fortschrittsfrist führt nicht automatisch zum Rollback."
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "code": "kubectl -n default rollout status deployment/kubeshop-api\nkubectl -n default rollout history deployment/kubeshop-api\nkubectl -n default describe deployment kubeshop-api\n# Bewusste Entscheidung nach Diagnose:\nkubectl -n default rollout undo deployment/kubeshop-api",
+          "caption": "Optionale externe Diagnose und bewusster Rollback. Voraussetzung sind ein existierendes Deployment und eine noch verfügbare frühere Revision."
+        },
+        {
+          "type": "text",
+          "text": "undo stellt eine frühere Pod-Vorlage wieder her und löst damit erneut einen Abgleich aus. Es stellt keine gelöschten Bestellungen wieder her und ersetzt keinen Datenbank-Restore. Auch nach einem Rollback prüfst du, ob die Anwendung aus Nutzersicht funktioniert."
+        }
+      ]
+    },
+    {
+      "id": "availability",
+      "title": "Drei Replikate sind noch keine vollständige Hochverfügbarkeit",
+      "navLabel": "Drei Replikate sind noch keine vollständige Hochverfügbarkeit",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Drei Pods auf demselben ausgefallenen Node helfen nicht. Auch ein gemeinsamer Datenbank-, Netzwerk- oder Storage-Ausfall kann alle Instanzen treffen. Replikation ist ein Baustein: sinnvolle Verteilung, Bereitschaftsprüfungen und Reserven bleiben eigene Themen. Als Nächstes braucht das Frontend eine stabile Adresse, die nicht von den wechselnden Namen dieser Pods abhängt."
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Strategie und Regelkreis",
+      "navLabel": "Optional: Strategie und Regelkreis",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Bei RollingUpdate begrenzt maxSurge zusätzliche Pods oberhalb des Ziels; maxUnavailable beschreibt, wie viele gewünschte Replikate während des Updates nicht verfügbar sein dürfen. Für drei Replikate kann ein gewünschtes maxSurge: 1 zusätzliche Kapazität benötigen. maxUnavailable: 0 beseitigt keinen Kapazitätsmangel und keine defekten Abhängigkeiten."
+        },
+        {
+          "type": "text",
+          "text": "PodDisruptionBudgets betreffen bestimmte freiwillige Unterbrechungen, etwa Evictions bei Wartung. Sie sind keine allgemeine Ausfallgarantie und ersetzen nicht die Deployment-Rollout-Strategie. Informer, Workqueues und idempotentes Reconciliation sind in der bestehenden Controller-Vertiefung verfügbar."
+        }
+      ],
+      "collapsible": true
+    }
+  ],
+  "sources": [
+    {
+      "title": "Deployments",
+      "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+    },
+    {
+      "title": "ReplicaSets",
+      "url": "https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/"
+    },
+    {
+      "title": "Labels und Selektoren",
+      "url": "https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/"
+    },
+    {
+      "title": "Disruptions",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/disruptions/"
+    }
+  ],
+  "reviewedOn": "2026-10-29"
+}

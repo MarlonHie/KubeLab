@@ -1,0 +1,170 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "pods",
+  "title": "Pods verstehen",
+  "description": "Warum Kubernetes Container zu einer gemeinsamen Ausführungseinheit zusammenfasst – und was bei einem Ausfall ersetzt wird.",
+  "moduleId": "05",
+  "category": "KUBERNETES IM ALLTAG",
+  "level": "Fundamentals",
+  "goals": [
+    "Pod und Container sowie Container-Neustart und Pod-Ersatz unterscheiden",
+    "Gemeinsames Netzwerk, Volumes und Pod-Phasen erklären"
+  ],
+  "sections": [
+    {
+      "id": "intro",
+      "title": "Warum nicht einfach einen Container starten?",
+      "navLabel": "Warum nicht einfach einen Container starten?",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Unser Backend besteht zunächst aus einem Serverprozess in einem Container. Kubernetes braucht jedoch eine Einheit, die es gemeinsam platzieren und betreuen kann: den Pod. Ein Pod beschreibt einen oder mehrere eng zusammengehörende Container mit gemeinsamen Rahmenbedingungen. Er wird auf einem Node ausgeführt und ist die kleinste deploybare Einheit von Kubernetes."
+        },
+        {
+          "type": "text",
+          "text": "Ein Backend-Pod und ein Frontend-Pod bleiben in KubeShop getrennt. Sie sollen unabhängig aktualisiert und skaliert werden können. „Gehört zur gleichen Anwendung“ ist deshalb kein ausreichender Grund, alles in einen Pod zu packen. Mehrere Container in einem Pod sind sinnvoll, wenn sie wirklich gemeinsam laufen müssen, etwa Hauptprozess und eng gekoppelter Helfer."
+        }
+      ]
+    },
+    {
+      "id": "sharing",
+      "title": "Was Container in einem Pod teilen",
+      "navLabel": "Was Container in einem Pod teilen",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Container eines Pods teilen normalerweise einen Netzwerk-Namespace: dieselbe Pod-IP und denselben Port-Raum. Sie erreichen sich über localhost. Zwei Prozesse können dort nicht unabhängig denselben Port derselben Adresse belegen. Verschiedene Pods haben dagegen eigene Netzwerkidentitäten; localhost zeigt dann nicht auf den Nachbar-Pod."
+        },
+        {
+          "type": "text",
+          "text": "Ein Pod kann Volumes definieren, die mehrere seiner Container an jeweils angegebenen Pfaden einbinden. So teilen sie gezielt Daten. Die beschreibbaren Container-Dateisysteme werden dadurch nicht automatisch zu einem gemeinsamen Dateisystem. Dauerhafte Speicherung ist wiederum eine eigene Frage; die Lebensdauer eines Pods ist keine Datensicherung."
+        }
+      ]
+    },
+    {
+      "id": "example",
+      "title": "Unser Backend-Pod",
+      "navLabel": "Unser Backend-Pod",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Aus der ersten Lektion kennen wir kubeshop-api-demo: ein Container namens api, Label app: kubeshop-api, Namespace default, vorgesehener HTTP-Port 8080. Der folgende Ausschnitt wiederholt nur die entscheidende Pod-Konfiguration; das vollständige Manifest steht in „Kubernetes-Ressourcen, YAML und kubectl“."
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "example",
+          "code": "spec:\n  restartPolicy: Always\n  containers:\n    - name: api\n      image: \"<KUBESHOP_BACKEND_IMAGE>\"\n      ports:\n        - name: http\n          containerPort: 8080",
+          "caption": "Illustrativer Ausschnitt für denselben Demo-Pod. Kein zweites vollständiges Manifest; das Image ist ein Platzhalter."
+        },
+        {
+          "type": "text",
+          "text": "Stürzt der Containerprozess ab, kann das kubelet auf dem Node ihn gemäß der Neustartregel innerhalb desselben Pods neu starten. Das ist ein Container-Neustart. Name und UID des Pod-Objekts können dabei gleich bleiben. Wiederholtes Scheitern kann zu Wartezeiten zwischen Startversuchen führen; mehr Neustarts sind noch keine Reparatur der Ursache."
+        }
+      ]
+    },
+    {
+      "id": "lifecycle",
+      "title": "Kurzlebig heißt ersetzbar, nicht unzuverlässig",
+      "navLabel": "Kurzlebig heißt ersetzbar, nicht unzuverlässig",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Wird der Pod gelöscht oder muss die Anwendung auf einen anderen Node wechseln, ist das nicht derselbe Vorgang wie ein lokaler Container-Neustart. Ein Ersatz ist ein neues Pod-Objekt mit neuer UID und möglicherweise anderer IP. Kubernetes verschiebt den alten Pod nicht einfach mitsamt seiner Identität auf einen anderen Node."
+        },
+        {
+          "type": "table",
+          "caption": "Pod-Phase ist eine grobe Zusammenfassung",
+          "headers": [
+            "Phase",
+            "Einordnung"
+          ],
+          "rows": [
+            [
+              "Pending",
+              "Angenommen, aber noch nicht vollständig eingerichtet; etwa Warten auf Platzierung oder Image."
+            ],
+            [
+              "Running",
+              "An einen Node gebunden, Container angelegt; mindestens einer läuft, startet oder startet erneut. Keine Aussage über erfolgreichen Nutzerzugriff."
+            ],
+            [
+              "Succeeded",
+              "Alle Container sind erfolgreich beendet und werden nicht erneut gestartet."
+            ],
+            [
+              "Failed",
+              "Alle Container sind beendet; mindestens einer ist fehlgeschlagen."
+            ],
+            [
+              "Unknown",
+              "Der Zustand lässt sich nicht zuverlässig ermitteln, beispielsweise bei fehlender Kommunikation."
+            ]
+          ]
+        },
+        {
+          "type": "text",
+          "text": "Die STATUS-Spalte von kubectl kann zusätzliche Begriffe wie CrashLoopBackOff oder Terminating zeigen. Das sind keine weiteren Pod-Phasen. Auch Running bedeutet nicht automatisch Ready: Bereitschaft für Anfragen wird getrennt beurteilt. Die vorhandene kubelet-Lektion erklärt Probes ausführlicher."
+        }
+      ]
+    },
+    {
+      "id": "deletion",
+      "title": "Was passiert ohne übergeordneten Controller?",
+      "navLabel": "Was passiert ohne übergeordneten Controller?",
+      "blocks": [
+        {
+          "type": "code",
+          "language": "bash",
+          "execution": "external",
+          "code": "kubectl -n default delete pod kubeshop-api-demo",
+          "caption": "Nur als optionales Gedanken-/Labbeispiel: Dieser Befehl löscht den ausdrücklich genannten Demo-Pod im externen Cluster."
+        },
+        {
+          "type": "text",
+          "text": "Unser direkt angelegter Demo-Pod hat keinen ReplicaSet-Controller als Besitzer. Nach regulärem Löschen sorgt deshalb kein solcher Controller für einen Ersatz. Die gespeicherte Pod-Beschreibung ist weg. Du könntest das Manifest erneut anwenden, aber damit müsstest du die Verfügbarkeit selbst organisieren."
+        },
+        {
+          "type": "text",
+          "text": "Für dauerhafte zustandslose Anwendungen beschreiben wir deshalb in der nächsten Lektion eine übergeordnete Absicht: Es sollen drei Backend-Instanzen vorhanden sein. Nicht jede konkrete Pod-Identität soll für immer bestehen. Dieses Ziel ist die Aufgabe von Deployment und ReplicaSet."
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Sandbox und zusätzliche Container",
+      "navLabel": "Optional: Sandbox und zusätzliche Container",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Die Pod-Sandbox stellt den gemeinsamen Ausführungskontext bereit; kubelet und Runtime koordinieren Vorbereitung und Container-Lifecycle. Die vorhandenen CRI- und kubelet-Vertiefungen erklären diese Grenze, ohne dass du sie vor dem ersten Deployment kennen musst."
+        },
+        {
+          "type": "text",
+          "text": "Reguläre Init Containers erledigen Vorbereitung vor den Anwendungscontainern. Sidecars übernehmen begleitende Aufgaben während deren Betrieb. Ob ein konkretes Sidecar-Muster spezielle Lifecycle-Unterstützung nutzt, hängt von Manifest und Cluster ab. Für KubeShop bleiben Frontend und API eigene Workloads; wir fügen keinen Helfer nur hinzu, um mehrere Container demonstrieren zu können."
+        }
+      ],
+      "collapsible": true
+    }
+  ],
+  "sources": [
+    {
+      "title": "Pods",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/"
+    },
+    {
+      "title": "Pod-Lifecycle",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+    },
+    {
+      "title": "Init Containers",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/init-containers/"
+    },
+    {
+      "title": "Sidecars",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/"
+    }
+  ],
+  "reviewedOn": "2026-10-29"
+}

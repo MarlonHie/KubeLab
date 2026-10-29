@@ -403,13 +403,18 @@ export function TopicLinks({ topic, path }: { topic: Topic; path?: string }) {
           </ul>
         </section>
       )}
-      {topic.deepDives.length > 0 && (
+      {(topic.deepDives.length > 0 || !!topic.deepDiveLinks?.length) && (
         <section>
           <h2>Optionale Deep Dives</h2>
           <ul>
             {topic.deepDives.map((d) => (
               <li key={d.section}>
                 <Link to={topicUrl(topic, path, d.section)}>{d.title}</Link>
+              </li>
+            ))}
+            {topic.deepDiveLinks?.map((d) => (
+              <li key={`${d.topicId}/${d.section}`}>
+                <Link to={topicUrl(topicById(d.topicId)!, undefined, d.section)}>{d.title}</Link>
               </li>
             ))}
           </ul>

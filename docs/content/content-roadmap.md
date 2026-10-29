@@ -1,8 +1,14 @@
 # Umsetzungsstand und Content-Roadmap · Lernplattform 2.0
 
-Stand: 28. Oktober 2026. Produktziel: Kubernetes verständlich machen, ohne eine Expertenausbildung oder einen Pflichtkurs vorauszusetzen. Die frühere feste Acht-Kapitel-Kursplanung ist ein optionaler Ideenfundus. Es gibt keine Mindestzahl an Lektionen, keine Mindestlernzeit und keine verpflichtenden Quiz-/Praxis-/Expert-Stufen.
+Stand: 29. Oktober 2026. Produktziel: Kubernetes verständlich machen, ohne eine Expertenausbildung oder einen Pflichtkurs vorauszusetzen. Die frühere feste Acht-Kapitel-Kursplanung ist ein optionaler Ideenfundus. Es gibt keine Mindestzahl an Lektionen, keine Mindestlernzeit und keine verpflichtenden Quiz-/Praxis-/Expert-Stufen.
 
-## Die fünf beauftragten Phasen
+## Content-Ausbau Phase 1 · umgesetzt
+
+Der Alltagspfad beginnt jetzt mit fünf zusammenhängenden Grundlagenlektionen: Ressourcen/YAML/kubectl, Pods, Deployments/ReplicaSets, Services/DNS, Ingress/Gateway API. Vier neue Dokumente und die erweiterte bestehende Services-Lektion bringen den Bestand auf 27. Keine neue Persistenzversion; alte IDs/Nachweise bleiben gültig. [Abschlussbericht mit Prüfungen und Grenzen](everyday-phase-1.md).
+
+Als Nächstes bieten sich Konfiguration und Probes, dann dauerhafte Daten und Operator-Nutzung an. Echte KubeShop-Images, eine freie Rollout-Simulation und reale Clusterprüfungen sind gesonderte Arbeiten, keine behaupteten Fähigkeiten dieser Phase. Der lokale Agent bleibt zurückgestellt.
+
+## Die fünf beauftragten Phasen der Lernplattform 2.0
 
 | Phase | Umsetzung | Grenzen |
 | --- | --- | --- |
@@ -14,7 +20,7 @@ Stand: 28. Oktober 2026. Produktziel: Kubernetes verständlich machen, ohne eine
 
 ## Gemeinsame Bibliothek statt Inhaltskopien
 
-[Library](../../packages/lesson-engine/src/library.ts) ist die zentrale Quelle für Topics, Pfade, Suche und Beziehungen. Die bestehenden Lesson-JSON-Dateien bleiben kanonisch und unverändert. Eine gezielte neue [Zalando-Lektion](../../content/lessons/zalando-postgres.json) macht den angeforderten direkten Alltagseinstieg tatsächlich benutzbar. Sie erklärt Manifest, Services/Secrets, Diagnose und optional Patroni anhand offizieller Projektquellen. Sie enthält absichtlich kein Quiz und keine bewertete Aufgabe. Alle übrigen fehlenden Fachkurse werden in diesem Auftrag noch nicht ausgearbeitet.
+[Library](../../packages/lesson-engine/src/library.ts) ist die zentrale Quelle für Topics, Pfade, Suche und Beziehungen. Die bestehenden Lesson-JSON-Dateien bleiben kanonisch; bei der Plattformumstellung blieben sie unverändert. Content-Phase 1 erweitert gezielt `networking`. Eine gezielte neue [Zalando-Lektion](../../content/lessons/zalando-postgres.json) macht den angeforderten direkten Alltagseinstieg tatsächlich benutzbar. Sie erklärt Manifest, Services/Secrets, Diagnose und optional Patroni anhand offizieller Projektquellen. Sie enthält absichtlich kein Quiz und keine bewertete Aufgabe. Weitere Fachkurse entstehen in den anschließenden Content-Phasen.
 
 Die Metadaten trennen `lessonId` von einer geplanten Themenkarte. Suche findet Titel, Beschreibung, Tags, Synonyme und Deep-Dive-Titel, normalisiert Groß-/Kleinschreibung, Umlaute und Trennzeichen und unterstützt die benannten Begriffsvarianten. Kategorie und Verfügbarkeit begrenzen die Treffer. Bei leeren Ergebnissen gibt es eine Rücksetzfunktion. Empfehlungen sind keine Voraussetzungen und keine Freischaltregeln.
 
@@ -70,4 +76,6 @@ Neue Interaktionen entstehen nur bei didaktischem Mehrwert. Vorhandener YAML-Val
 
 ## Prüfprotokoll und verbleibende Grenzen
 
-Das abschließende Prüfprotokoll wird nach den lokalen Läufen unten ergänzt. Ein erfolgreicher Build oder Modelltest belegt keine echte Clusterfunktion. Geplante Themen bleiben sichtbar unvollständig; der aktuelle Auftrag schafft die Struktur und den gezielten Zalando-Einstieg. Die bekannte Monaco-Bundlegrößenwarnung ist weiterhin möglich. Daten liegen lokal pro Browser, nicht geräteübergreifend. Eine unabhängige didaktische Pilotierung ist durch automatisierte Tests nicht ersetzt.
+Am 29. Oktober 2026 gegen den abgeschlossenen Content-Phase-1-Stand ausgeführt: **175 Unit-Tests und 39 Chromium-E2E-Tests bestanden**. `npm run build` einschließlich TypeScript-Prüfung erfolgreich. Separater lokaler Preview unter `/KubeLab/` geprüft: Startseite, alle fünf Grundlagenlektionen und nachgeladener Monaco-Editor ohne HTTP-/Laufzeitfehler. Desktop-/Mobilansichten visuell geprüft; kein Seitenüberlauf. `git diff --check` und lokale Dokumentverweise sind fehlerfrei. Details und neue Testdateien: [Abschlussbericht](everyday-phase-1.md).
+
+Ein erfolgreicher Build oder Modelltest belegt keine echte Clusterfunktion. KubeShop-Images bleiben ausdrücklich illustrative Platzhalter; weitere Fachstrecken sind als geplant gekennzeichnet. Die bekannte Monaco-Bundlegrößenwarnung bleibt. Daten liegen lokal pro Browser, nicht geräteübergreifend. Eine unabhängige didaktische Pilotierung ist durch automatisierte Tests nicht ersetzt. Kein Remote-Deployment und kein VM-/Operator-Lab wurden mit diesem Lauf behauptet.

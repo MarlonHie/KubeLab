@@ -1,0 +1,183 @@
+{
+  "$schema": "../../packages/lesson-engine/lesson.schema.json",
+  "schemaVersion": 1,
+  "id": "ingress",
+  "title": "Ingress und Gateway API",
+  "description": "Wie eine externe HTTP-Anfrage über Hostname und Pfad zum passenden Service gelangt.",
+  "moduleId": "08",
+  "category": "KUBERNETES IM ALLTAG",
+  "level": "Fundamentals",
+  "goals": [
+    "Ingress-Ressource und ausführenden Controller unterscheiden",
+    "GatewayClass, Gateway und HTTPRoute sowie ihre Voraussetzungen erklären"
+  ],
+  "sections": [
+    {
+      "id": "intro",
+      "title": "Wie kommt eine Anfrage von draußen zum Shop?",
+      "navLabel": "Wie kommt eine Anfrage von draußen zum Shop?",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Frontend und Backend können über interne Services kommunizieren. Der Browser eines Kunden befindet sich jedoch normalerweise außerhalb dieses Netzes. Eine ClusterIP ist dort nicht automatisch erreichbar. Wir brauchen eine erreichbare Eintrittsstelle und Regeln, die eine HTTP-Anfrage an den passenden Service weitergeben."
+        },
+        {
+          "type": "text",
+          "text": "Für einen lokalen Diagnosetest kann port-forward genügen. NodePort oder ein LoadBalancer-Service bieten andere externe Zugänge. Ingress und Gateway API beschreiben darüber hinaus HTTP-Routing, etwa nach Hostname und Pfad. Keine dieser Beschreibungen ersetzt die benötigte Netzwerkimplementierung oder eine erreichbare Adresse."
+        }
+      ]
+    },
+    {
+      "id": "frontend",
+      "title": "Das Frontend als Backend des HTTP-Routers",
+      "navLabel": "Das Frontend als Backend des HTTP-Routers",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Hier kommt kubeshop-web hinzu: zwei Frontend-Pods auf Port 80 und ein gleichnamiger ClusterIP-Service. Das Backend bleibt kubeshop-api mit Service-Port 80 und Zielport 8080 aus der Services-Lektion. Die Images sind weiterhin ausdrückliche Platzhalter, keine verfügbaren KubeShop-Releases."
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "example",
+          "code": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: kubeshop-web\n  namespace: default\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: kubeshop-web\n  template:\n    metadata:\n      labels:\n        app: kubeshop-web\n    spec:\n      containers:\n        - name: web\n          image: \"<KUBESHOP_FRONTEND_IMAGE>\"\n          ports:\n            - name: http\n              containerPort: 80\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: kubeshop-web\n  namespace: default\nspec:\n  type: ClusterIP\n  selector:\n    app: kubeshop-web\n  ports:\n    - name: http\n      port: 80\n      targetPort: 80",
+          "caption": "Illustratives Manifest: Image-Platzhalter ersetzen. KubeLab führt dieses Beispiel nicht aus.",
+          "filename": "kubeshop-web.yaml"
+        },
+        {
+          "type": "text",
+          "text": "shop.example.test ist ein Demonstrationshostname. Im echten Arbeitscluster muss der gewählte Name auf die erreichbare Routeradresse zeigen, zum Beispiel über verwaltetes DNS oder eine passende lokale Testkonfiguration. YAML allein registriert keinen Hostnamen. Die folgenden Ingress- und Gateway-Beispiele sind alternative Wege für denselben Shop, nicht zwei gleichzeitig notwendige Installationen."
+        }
+      ]
+    },
+    {
+      "id": "ingress-example",
+      "title": "Ingress: Regel und Controller gehören zusammen",
+      "navLabel": "Ingress: Regel und Controller gehören zusammen",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Ein Ingress-Objekt beschreibt, welcher Host und welcher Pfad zu welchem Service gehören. Ein Ingress Controller liest diese Regeln und richtet den eigentlichen HTTP-Datenpfad ein. Ohne passenden Controller bleibt die Regel wirkungslos. ingressClassName muss zu einer im Cluster angebotenen IngressClass passen; den Platzhalter übernimmt niemand automatisch."
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "example",
+          "code": "apiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: kubeshop\n  namespace: default\nspec:\n  ingressClassName: \"<INGRESS_CLASS>\"\n  rules:\n    - host: shop.example.test\n      http:\n        paths:\n          - path: /api\n            pathType: Prefix\n            backend:\n              service:\n                name: kubeshop-api\n                port:\n                  number: 80\n          - path: /\n            pathType: Prefix\n            backend:\n              service:\n                name: kubeshop-web\n                port:\n                  number: 80",
+          "caption": "Illustrative Ingress-Ressource mit gültiger API-Version. <INGRESS_CLASS> durch die freigegebene Klasse ersetzen; keine Controllerinstallation.",
+          "filename": "kubeshop-ingress.yaml"
+        },
+        {
+          "type": "text",
+          "text": "Für shop.example.test führt /api/products zum Service kubeshop-api:80; / führt zum Frontend-Service kubeshop-web:80. Der spezifischere passende Präfix gewinnt. Der API-Service leitet dann an Port 8080 der Backend-Pods weiter. Wir konfigurieren keine Rewrite-Annotation: Das Backend muss den /api-Pfad selbst verstehen."
+        },
+        {
+          "type": "text",
+          "text": "TLS schützt die Verbindung und erlaubt dem Client, den Server anhand eines Zertifikats zu prüfen. Ein HTTP-Beispiel auf Port 80 ist noch kein HTTPS-Angebot. Für TLS-Terminierung am Router werden ein passendes Zertifikat samt Schlüssel, Hostname, Konfiguration und Vertrauen benötigt. Der einfache Hauptpfad zeigt zunächst Routing; TLS-Details stehen optional weiter unten."
+        }
+      ]
+    },
+    {
+      "id": "gateway-example",
+      "title": "Gateway API: Verantwortung genauer aufteilen",
+      "navLabel": "Gateway API: Verantwortung genauer aufteilen",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Gateway API trennt Infrastruktur- und Anwendungsrollen deutlicher und bietet ein erweiterbares Routingmodell. Eine GatewayClass beschreibt eine vom Infrastrukturteam angebotene Klasse samt zuständigem Controller. Ein Gateway fordert daraus eine konkrete Eintrittsstelle mit Listenern an. Eine HTTPRoute verbindet Anfragen mit Backend-Services und bindet sich über parentRefs an ein Gateway."
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "execution": "example",
+          "code": "apiVersion: gateway.networking.k8s.io/v1\nkind: Gateway\nmetadata:\n  name: kubeshop-gateway\n  namespace: default\nspec:\n  gatewayClassName: \"<GATEWAY_CLASS>\"\n  listeners:\n    - name: http\n      protocol: HTTP\n      port: 80\n      hostname: shop.example.test\n---\napiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: kubeshop\n  namespace: default\nspec:\n  parentRefs:\n    - name: kubeshop-gateway\n      sectionName: http\n  hostnames:\n    - shop.example.test\n  rules:\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /api\n      backendRefs:\n        - name: kubeshop-api\n          port: 80\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /\n      backendRefs:\n        - name: kubeshop-web\n          port: 80",
+          "caption": "Alternative illustrative Gateway/HTTPRoute-Konfiguration. Gateway-API-CRDs, kompatibler Controller und eine vorhandene <GATEWAY_CLASS> sind Voraussetzungen.",
+          "filename": "kubeshop-gateway.yaml"
+        },
+        {
+          "type": "text",
+          "text": "Der Listener http nimmt in diesem Beispiel Port 80 für shop.example.test an. Die Route verweist auf diesen Listener und bietet dieselben beiden Zielpfade wie das Ingress-Beispiel. Ob eine Route akzeptiert und ihre Referenzen aufgelöst wurden, zeigen die Status-Conditions. Ein gespeichertes Objekt bedeutet noch keinen programmierten, erreichbaren Datenpfad."
+        },
+        {
+          "type": "table",
+          "caption": "Welche Beschreibung passt zur Umgebung?",
+          "headers": [
+            "Ingress",
+            "Gateway API"
+          ],
+          "rows": [
+            [
+              "Vorhandene IngressClass und Controller-Vereinbarungen nutzen.",
+              "Vorhandene GatewayClass, Listener- und Route-Vereinbarungen nutzen."
+            ],
+            [
+              "Host/Pfad-Routing über Ingress-Regeln; zusätzliche Funktionen können controllerabhängig sein.",
+              "Rollen und Routing-Ressourcen sind getrennt; unterstützte Funktionen der Implementierung prüfen."
+            ],
+            [
+              "Ein vorhandener funktionierender Ingress muss nicht wegen dieser Lektion ersetzt werden.",
+              "Geeignet, wenn die Plattform Gateway API anbietet; keine automatische Umwandlung alter Ingress-Objekte."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "whole-picture",
+      "title": "Das Gesamtbild: Steuerung und Nutzerverkehr trennen",
+      "navLabel": "Das Gesamtbild: Steuerung und Nutzerverkehr trennen",
+      "blocks": [
+        {
+          "type": "code",
+          "language": "text",
+          "execution": "example",
+          "code": "STEUERUNGSBEZIEHUNGEN (vereinfacht)\nEntwickler -- kubectl apply --> Kubernetes API\nDeployment kubeshop-web --> ReplicaSet --> Frontend-Pods\nDeployment kubeshop-api --> ReplicaSet --> Backend-Pods\n\nHTTP-DATENPFAD (vereinfacht)\nBrowser: shop.example.test\n  --> erreichbarer Ingress-Controller ODER Gateway-Datenpfad\n      /     --> Service kubeshop-web:80 --> Frontend-Pod:80\n      /api  --> Service kubeshop-api:80 --> Backend-Pod:8080",
+          "caption": "Architekturübersicht der fünf Lektionen. Pfeile oben bezeichnen Verwaltung, unten Zugriff; kein vollständiger Kommunikations- oder Paketablauf."
+        },
+        {
+          "type": "text",
+          "text": "Der Browser ruft weder ein ReplicaSet noch den API Server auf, um Produkte anzusehen. Die zuvor geschriebenen Ressourcen konfigurieren Zustände und Zugriff. Für die Fehlersuche fragst du deshalb schrittweise: Stimmt die Namensauflösung? Ist die Eintrittsstelle erreichbar? Passt Host/Pfad? Hat der Service passende bereite Ziele? Antwortet die Anwendung auf dem Zielport?"
+        },
+        {
+          "type": "text",
+          "text": "Du kannst damit den Weg von der Beschreibung einer Anwendung bis zu ihrer HTTP-Erreichbarkeit erklären, ohne selbst einen Cluster aufgebaut zu haben. Konfiguration, Ressourcenbudgets, Probes und dauerhafte Daten sind anschließende Themen, keine versteckten Voraussetzungen für diese fünf Erklärungen."
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "TLS, Plattformdienste und Routingdetails",
+      "navLabel": "Optional: TLS, Plattformdienste und Routingdetails",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "Bei TLS-Terminierung am Router endet dort die verschlüsselte Clientverbindung; ob die nächste Verbindung zum Backend ebenfalls verschlüsselt ist, ist eine separate Konfiguration. cert-manager kann Zertifikatsbereitstellung und Erneuerung automatisieren, schafft aber nicht von allein den gesamten HTTP-Zugriff."
+        },
+        {
+          "type": "text",
+          "text": "Auf einem lokalen Cluster kann etwa MetalLB eine LoadBalancer-Adresse bereitstellen. Es ersetzt keinen Ingress-/Gateway-Controller. Welche Adresse, Klasse und Zertifikatsquelle du benutzen darfst, gehört zum Vertrag der vorhandenen Plattform. Gateway API im Detail, cert-manager und MetalLB sind im Themenkatalog als weitere Ausbauziele gekennzeichnet; hier wird kein ungeprüftes Installationslab behauptet."
+        }
+      ],
+      "collapsible": true
+    }
+  ],
+  "sources": [
+    {
+      "title": "Ingress",
+      "url": "https://kubernetes.io/docs/concepts/services-networking/ingress/"
+    },
+    {
+      "title": "Gateway API HTTP Routing",
+      "url": "https://gateway-api.sigs.k8s.io/guides/user-guides/http-routing/"
+    },
+    {
+      "title": "Gateway API",
+      "url": "https://kubernetes.io/docs/concepts/services-networking/gateway/"
+    },
+    {
+      "title": "Service-Zugriff",
+      "url": "https://kubernetes.io/docs/concepts/services-networking/service/"
+    }
+  ],
+  "reviewedOn": "2026-10-29"
+}

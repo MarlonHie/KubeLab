@@ -98,18 +98,16 @@ test("search filters, alternate spelling, empty results and planned-topic links 
   await page.goto("/#/discover");
   await page.getByLabel("Themen durchsuchen").fill("HTTP Zugriff");
   await expect(page.getByTestId("topic-ingress")).toContainText(
-    "Thema geplant",
+    "Lektion verfügbar",
   );
   await page
     .getByTestId("topic-ingress")
-    .getByRole("link", { name: "Ingress", exact: true })
+    .getByRole("link", { name: "Ingress und Gateway API", exact: true })
     .click();
-  await expect(
-    page.getByText("Dieses Thema ist geplant.", { exact: true }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/academy\/ingress$/);
   await expect(
     page.getByRole("link", {
-      name: "Services und Pod-Verbindungen",
+      name: "Services und DNS",
       exact: true,
     }),
   ).toBeVisible();
@@ -122,9 +120,9 @@ test("search filters, alternate spelling, empty results and planned-topic links 
   await page.getByRole("button", { name: "Suche zurücksetzen" }).click();
   await page.getByLabel("Kategorie", { exact: true }).selectOption("Netzwerk");
   await page.getByLabel("Verfügbarkeit").selectOption("available");
-  await expect(page.locator(".topic-card")).toHaveCount(2);
+  await expect(page.locator(".topic-card")).toHaveCount(3);
   await page.reload();
-  await expect(page.locator(".topic-card")).toHaveCount(2);
+  await expect(page.locator(".topic-card")).toHaveCount(3);
 });
 test("version 4 auto-migration preserves original data and exports shared reading state", async ({
   page,

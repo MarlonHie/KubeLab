@@ -21,11 +21,44 @@ export interface Topic {
   recommended: string[];
   related: string[];
   deepDives: { title: string; section: string }[];
+  deepDiveLinks?: { topicId: string; section: string; title: string }[];
   kubeshop?: string;
   tools?: ("editor" | "visualizer" | "build")[];
 }
 // One metadata registry; paths and React views reference these identities.
 const metadata: Record<string, Partial<Topic>> = {
+  "resources-basics": {
+    category: "Orientierung & Grundlagen",
+    tags: ["YAML", "kubectl", "Ressourcen", "Namespace", "apply", "describe"],
+    synonyms: ["Kubernetes CLI", "Manifest", "Sollzustand"],
+    related: ["pods", "namespaces", "api-lifecycle", "apply-to-pod"],
+    deepDiveLinks: [{ topicId: "api-lifecycle", section: "internals", title: "API-Verarbeitung und Admission" }],
+    kubeshop: "Das Backend als gewünschte Ressource beschreiben und untersuchen.",
+  },
+  pods: {
+    category: "Anwendungen",
+    tags: ["Pod", "Container", "Lifecycle", "Restart", "Volumes"],
+    recommended: ["resources-basics"],
+    related: ["deployments", "containers", "container-lifecycle"],
+    deepDiveLinks: [{ topicId: "kubelet-runtime", section: "internals", title: "kubelet, Runtime und Pod-Lifecycle" }],
+    kubeshop: "Das Backend läuft in einem einzelnen, noch unverwalteten Pod.",
+  },
+  deployments: {
+    category: "Anwendungen",
+    tags: ["Deployment", "ReplicaSet", "Replikate", "Rollout", "Rollback", "Labels"],
+    recommended: ["pods"],
+    related: ["networking", "controllers", "scheduling", "probes"],
+    deepDiveLinks: [{ topicId: "controllers", section: "internals", title: "Controller, Workqueues und Reconciliation" }],
+    kubeshop: "Drei Backend-Replikate verwalten und Änderungen kontrolliert übernehmen.",
+    tools: ["editor"],
+  },
+  ingress: {
+    category: "Netzwerk",
+    tags: ["Ingress", "Gateway API", "HTTPRoute", "GatewayClass", "TLS", "HTTP-Zugriff"],
+    recommended: ["networking"],
+    related: ["gateway", "tls", "metallb"],
+    kubeshop: "Frontend und API unter einem gemeinsamen Host von außen erreichen.",
+  },
   linux: {
     tags: ["Kernel", "Prozess", "VM"],
     related: ["containers", "linux-processes"],
@@ -146,12 +179,12 @@ const metadata: Record<string, Partial<Topic>> = {
     tools: ["visualizer"],
   },
   networking: {
-    title: "Services und Pod-Verbindungen",
+    title: "Services und DNS",
     category: "Netzwerk",
-    tags: ["Service", "ClusterIP", "EndpointSlice", "Labels", "Ports"],
+    tags: ["Service", "ClusterIP", "EndpointSlice", "Labels", "Ports", "DNS", "CoreDNS"],
     synonyms: ["Service-Routing"],
     related: ["dns", "ingress", "gateway", "cilium"],
-    recommended: ["pods"],
+    recommended: ["deployments"],
     kubeshop: "Frontend und Backend trotz wechselnder Pod-Adressen verbinden.",
     tools: ["editor", "visualizer"],
   },
@@ -246,7 +279,7 @@ const planned: [string, string, string, string, string[]][] = [
   ],
   [
     "dns",
-    "DNS und CoreDNS",
+    "DNS und CoreDNS vertiefen",
     "Netzwerk",
     "Services über Namen finden und Auflösung getrennt diagnostizieren.",
     ["CoreDNS", "DNS"],
@@ -260,7 +293,7 @@ const planned: [string, string, string, string, string[]][] = [
   ],
   [
     "gateway",
-    "Gateway API",
+    "Gateway API vertiefen",
     "Netzwerk",
     "Listener, HTTPRoute und Backend-Ziele miteinander verbinden.",
     ["Gateway", "HTTPRoute", "HTTP-Routing"],
@@ -481,7 +514,7 @@ export const topics: Topic[] = [
       .map((s) => ({ title: s.title, section: s.id })),
     ...metadata[l.id],
   })),
-  ...planned.map(([id, title, category, description, tags]): Topic => ({
+  ...planned.filter(([id]) => !documents.some((l) => l.id === id)).map(([id, title, category, description, tags]): Topic => ({
     id,
     title,
     category,
@@ -513,23 +546,11 @@ export const learningPaths: LearningPath[] = [
       "Anwendungen verstehen, konfigurieren und Fehler eingrenzen. Ohne vorherige Clusterinstallation.",
     highlights: ["Workloads", "Services", "PostgreSQL", "GitOps"],
     steps: [
-      step(
-        "Orientierung im Cluster",
-        "cluster-basics",
-        "namespaces",
-        "apply-to-pod",
-      ),
-      step(
-        "Pods und Workloads",
-        "pods",
-        "deployments",
-        "controllers",
-        "jobs",
-        "daemonsets",
-      ),
+      step("Deine erste Anwendung", "resources-basics", "pods", "deployments", "networking", "ingress"),
+      step("Orientierung vertiefen", "cluster-basics", "namespaces", "apply-to-pod"),
+      step("Weitere Workloads", "controllers", "jobs", "daemonsets"),
       step("Anwendungskonfiguration", "configmaps", "secrets"),
-      step("Services und DNS", "networking", "dns"),
-      step("HTTP-Zugriff", "ingress", "gateway", "tls"),
+      step("Netzwerk vertiefen", "dns", "gateway", "tls"),
       step(
         "Ressourcen und Bereitschaft",
         "resources",
@@ -713,6 +734,9 @@ for (const t of topics) {
     throw new Error(`Unbekannte Kategorie: ${t.id}`);
   for (const id of [...t.recommended, ...t.related])
     if (!ids.has(id)) throw new Error(`Unbekannter Themenverweis: ${id}`);
+  for (const d of t.deepDiveLinks ?? [])
+    if (!topicById(d.topicId)?.deepDives.some((local) => local.section === d.section))
+      throw new Error(`Unbekannter verknüpfter Deep Dive: ${t.id}/${d.topicId}/${d.section}`);
   for (const d of t.deepDives)
     if (
       !documents
